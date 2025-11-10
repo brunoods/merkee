@@ -1,26 +1,27 @@
 <?php
 // ---
 // /app/Models/Compra.php
+// (VERSÃO ATUALIZADA COM MÉTODOS DO DASHBOARD)
 // ---
 
-// 1. (A CORREÇÃO) Adiciona o Namespace
 namespace App\Models;
 
-// 2. (A CORREÇÃO) Adiciona as dependências
 use PDO;
 use App\Utils\StringUtils;
 use DateTime;
 
-// 3. (A CORREÇÃO) Garante que o nome da classe está correto
 class Compra {
     
     public int $id;
     public int $usuario_id;
     public int $estabelecimento_id;
-    public string $status; // 'ativa', 'finalizada', 'cancelada'
+    public string $status; 
     public string $data_inicio;
     public ?string $data_fim;
-    public ?string $ultimo_item_em; // (Para o CRON de inatividade)
+    public ?string $ultimo_item_em;
+    // (Novas propriedades das colunas que adicionámos)
+    public ?float $total_gasto;
+    public ?float $total_poupado;
 
     private function __construct(array $data) {
         $this->id = (int)$data['id'];
@@ -30,6 +31,8 @@ class Compra {
         $this->data_inicio = $data['data_inicio'];
         $this->data_fim = $data['data_fim'];
         $this->ultimo_item_em = $data['ultimo_item_em'];
+        $this->total_gasto = $data['total_gasto'] ?? null; // (Adicionado)
+        $this->total_poupado = $data['total_poupado'] ?? null; // (Adicionado)
     }
 
     /**
@@ -77,7 +80,7 @@ class Compra {
         ";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$usuario_id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC); // Retorna um array
+        return $stmt->fetch(PDO::FETCH_ASSOC); 
     }
 
 
@@ -95,7 +98,6 @@ class Compra {
         $stmt->execute([$usuario_id, $estabelecimento_id, $dataInicio, $dataInicio]);
         $newId = (int)$pdo->lastInsertId();
         
-        // Retorna o objeto Compra recém-criado
         return new Compra([
             'id' => $newId,
             'usuario_id' => $usuario_id,
@@ -103,21 +105,22 @@ class Compra {
             'status' => 'ativa',
             'data_inicio' => $dataInicio,
             'data_fim' => null,
-            'ultimo_item_em' => $dataInicio
+            'ultimo_item_em' => $dataInicio,
+            'total_gasto' => 0.0,
+            'total_poupado' => 0.0
         ]);
     }
 
 
     /**
      * ADICIONA um novo item a esta compra.
-     * Também atualiza o 'ultimo_item_em' da compra.
      */
     public function addItem(PDO $pdo, string $nome, string $qtdDesc, int $quantidade, float $precoPago, ?float $precoNormal = null): int
     {
-        // (Usa a classe StringUtils importada)
-        $nomeNormalizado = StringUtils::normalize($nome);
+        $nomeNormalizado = StringUtils::normalize($nome); 
         $emPromocao = ($precoNormal !== null && $precoNormal > $precoPago);
-        $precoUnitario = $precoPago / $quantidade;
+        // (Corrigido: preço unitário deve ser o preço pago a dividir pela quantidade)
+        $precoUnitario = $precoPago / ($quantidade > 0 ? $quantidade : 1); 
 
         $pdo->beginTransaction();
         try {
@@ -127,16 +130,17 @@ class Compra {
                     (compra_id, produto_nome, produto_nome_normalizado, quantidade_desc, quantidade, preco, preco_normal, em_promocao) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             );
+            // (Corrigido: O 'preco' guardado deve ser o unitário)
             $stmt->execute([
-                $this->id, $nome, $nomeNormalizado, $qtdDesc, $quantidade, $precoPago, $precoNormal, $emPromocao
+                $this->id, $nome, $nomeNormalizado, $qtdDesc, $quantidade, $precoUnitario, $precoNormal, $emPromocao
             ]);
             $itemId = (int)$pdo->lastInsertId();
             
-            // 2. Atualiza o "timestamp" da compra (para o CRON de inatividade)
+            // 2. Atualiza o "timestamp" da compra
             $stmt = $pdo->prepare("UPDATE compras SET ultimo_item_em = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$this->id]);
             
-            // 3. Atualiza o histórico de preços (tabela grande)
+            // 3. Atualiza o histórico de preços
             $stmt = $pdo->prepare(
                 "INSERT INTO historico_precos 
                     (usuario_id, estabelecimento_id, compra_id, produto_nome, produto_nome_normalizado, preco_unitario, data_compra)
@@ -151,44 +155,34 @@ class Compra {
             
         } catch (\Exception $e) {
             $pdo->rollBack();
-            // Lança a exceção para o BotController/Webhook apanhar
             throw $e; 
         }
     }
 
     /**
-     * Finaliza esta compra.
-     * Retorna os totais e os itens para o relatório.
+     * Finaliza esta compra (APENAS MUDA O STATUS)
+     * (A lógica de cálculo foi movida para o CompraReportService)
      */
     public function finalize(PDO $pdo): array
     {
         $dataFim = (new DateTime())->format('Y-m-d H:i:s');
         
-        // 1. Atualiza o status da compra
         $stmt = $pdo->prepare("UPDATE compras SET status = 'finalizada', data_fim = ? WHERE id = ?");
         $stmt->execute([$dataFim, $this->id]);
         $this->status = 'finalizada';
         $this->data_fim = $dataFim;
         
-        // 2. Busca todos os itens e o total
+        // Busca todos os itens (para o ReportService calcular)
         $stmt = $pdo->prepare("
-            SELECT *, (preco * quantidade) as preco_total
-            FROM itens_compra 
+            SELECT * FROM itens_compra 
             WHERE compra_id = ?
         ");
         $stmt->execute([$this->id]);
         $itens = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        $totalGasto = 0;
-        foreach ($itens as $item) {
-            $totalGasto += (float)$item['preco_total'];
-        }
 
-        return [
-            'total' => $totalGasto,
-            'itens' => $itens
-        ];
+        return ['itens' => $itens]; // (Retorna apenas os itens)
     }
+
     /**
      * Encontra TODAS as compras finalizadas de um usuário (para o Dashboard).
      */
@@ -206,6 +200,9 @@ class Compra {
         $stmt->execute([$usuario_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    // --- (INÍCIO DAS NOVAS FUNÇÕES - A CORREÇÃO DO ERRO) ---
+
     /**
      * Encontra uma compra específica pelo seu ID e ID do usuário.
      * (ESSENCIAL PARA SEGURANÇA DO DASHBOARD)

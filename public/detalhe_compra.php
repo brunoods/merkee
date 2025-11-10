@@ -29,6 +29,7 @@ if ($compraId === 0) {
         $pdo = getDbConnection();
         
         // 3. Busca os dados da compra (e verifica se pertence ao utilizador)
+        // (Esta função foi a que acabámos de adicionar ao Compra.php)
         $compra = Compra::findByIdAndUser($pdo, $compraId, $userId);
         
         if (!$compra) {
@@ -36,11 +37,12 @@ if ($compraId === 0) {
             $erro = "Compra não encontrada ou não pertence a si.";
         } else {
             // 4. Se a compra é válida, busca os itens dela
+            // (Esta também é uma função nova no Compra.php)
             $itens = Compra::findItemsByCompraId($pdo, $compraId);
         }
         
     } catch (Exception $e) {
-        $erro = "Erro ao carregar os dados: " . $e.getMessage();
+        $erro = "Erro ao carregar os dados: " . $e->getMessage();
     }
 }
 
@@ -116,7 +118,13 @@ if ($compraId === 0) {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($itens as $item): ?>
+                        <?php foreach ($itens as $item): 
+                            // Calcula a poupança unitária
+                            $poupancaUnitaria = 0;
+                            if ($item['em_promocao'] && $item['preco_normal'] > $item['preco']) {
+                                $poupancaUnitaria = (float)$item['preco_normal'] - (float)$item['preco'];
+                            }
+                        ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($item['produto_nome']); ?></td>
                                 <td><?php echo htmlspecialchars($item['quantidade_desc']); ?> (<?php echo $item['quantidade']; ?>)</td>
@@ -127,8 +135,8 @@ if ($compraId === 0) {
                                     <?php endif; ?>
                                 </td>
                                 <td class="col-poupanca">
-                                    <?php if ($item['em_promocao']): ?>
-                                        R$ <?php echo number_format($item['preco_normal'] - $item['preco'], 2, ',', '.'); ?>
+                                    <?php if ($poupancaUnitaria > 0): ?>
+                                        R$ <?php echo number_format($poupancaUnitaria, 2, ',', '.'); ?>
                                     <?php else: ?>
                                         -
                                     <?php endif; ?>
