@@ -1,13 +1,11 @@
 <?php
 // ---
 // /app/Services/WhatsAppService.php
-// (VERSÃO COM NAMESPACE, getenv() e EXCEÇÕES)
+// (VERSÃO CORRIGIDA COM $_ENV)
 // ---
 
-// 1. Define o Namespace
 namespace App\Services;
 
-// 2. Importa a classe global Exception
 use Exception; 
 
 class WhatsAppService {
@@ -16,12 +14,14 @@ class WhatsAppService {
     private string $clientToken;
 
     public function __construct() {
-        // 3. Lê as chaves do .env
-        $this->apiUrl = getenv('WHATSAPP_API_URL');
-        $this->clientToken = getenv('WHATSAPP_CLIENT_TOKEN');
+        
+        // --- (A CORREÇÃO ESTÁ AQUI) ---
+        // Lemos do $_ENV primeiro para contornar o cache do servidor
+        $this->apiUrl = $_ENV['WHATSAPP_API_URL'] ?? getenv('WHATSAPP_API_URL');
+        $this->clientToken = $_ENV['WHATSAPP_CLIENT_TOKEN'] ?? getenv('WHATSAPP_CLIENT_TOKEN');
+        // --- (FIM DA CORREÇÃO) ---
 
         if (empty($this->apiUrl) || empty($this->clientToken)) {
-            // Se as chaves não estiverem no .env, lança um erro que para o script
             throw new Exception("WHATSAPP_API_URL ou WHATSAPP_CLIENT_TOKEN não definidos no .env");
         }
     }
@@ -39,13 +39,11 @@ class WhatsAppService {
             'message' => $message
         ]);
 
-        // 2. Prepara a chamada cURL
         $ch = curl_init($this->apiUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
         
-        // --- HEADERS ---
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
             'Content-Length: ' . strlen($payload),
@@ -54,18 +52,15 @@ class WhatsAppService {
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch); // (Obtém o erro do cURL)
+        $curlError = curl_error($ch);
         curl_close($ch);
 
         if ($httpCode < 200 || $httpCode >= 300) {
-            // (NOVO) Lança uma exceção em vez de logar
-            // O script que a chamou (webhook/cron) será responsável por logar.
             throw new Exception(
                 "Falha na API do WhatsApp. HTTP $httpCode. Resposta: $response. Erro cURL: $curlError"
             );
         }
 
-        // Se chegou aqui, teve sucesso
         return true;
     }
 }

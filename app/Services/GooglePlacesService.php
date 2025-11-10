@@ -1,13 +1,11 @@
 <?php
 // ---
 // /app/Services/GooglePlacesService.php
-// (VERSÃO COM NAMESPACE e getenv())
+// (VERSÃO CORRIGIDA COM $_ENV)
 // ---
 
-// 1. Define o Namespace
 namespace App\Services;
 
-// 2. Importa classes globais
 use Exception;
 
 class GooglePlacesService {
@@ -16,8 +14,12 @@ class GooglePlacesService {
     private string $apiUrl = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json';
 
     public function __construct() {
-        // 3. (A CORREÇÃO) Lê do .env
-        $this->apiKey = getenv('GOOGLE_PLACES_API_KEY');
+        
+        // --- (A CORREÇÃO ESTÁ AQUI) ---
+        // Lemos do $_ENV primeiro para contornar o cache
+        $this->apiKey = $_ENV['GOOGLE_PLACES_API_KEY'] ?? getenv('GOOGLE_PLACES_API_KEY');
+        // --- (FIM DA CORREÇÃO) ---
+        
         if (empty($this->apiKey)) {
             throw new Exception("GOOGLE_PLACES_API_KEY não definida no .env");
         }
@@ -25,10 +27,7 @@ class GooglePlacesService {
 
     /**
      * Busca locais no Google Places API
-     *
-     * @param string $nomeMercado O texto da busca (ex: "Mercado Bom Preço")
-     * @param string $cidadeEstado O contexto (ex: "Maringá - PR")
-     * @return array Lista de locais encontrados (ou vazia)
+     * (O resto da função é idêntico)
      */
     public function buscarLocais(string $nomeMercado, string $cidadeEstado): array
     {
@@ -56,7 +55,6 @@ class GooglePlacesService {
         curl_close($ch);
 
         if ($httpCode != 200) {
-            // (Lança exceção para o BotController/Webhook apanhar)
              throw new Exception(
                 "Falha na API do Google Places. HTTP $httpCode. Resposta: $responseJson. Erro cURL: $curlError"
             );
