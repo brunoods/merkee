@@ -1,26 +1,26 @@
 <?php
 // ---
 // /tasks/enviar_dica_aleatoria.php
-// (VERSÃO 2.0 - AGORA OBEDECE ÀS CONFIGURAÇÕES)
+// (VERSÃO COM BOOTSTRAP, NAMESPACE E FIX IS_ATIVO)
 // ---
 
-require_once __DIR__ . '/../config/db.php';
-// ... (outros require_once) ...
-require_once __DIR__ . '/../config/api_keys.php';
-require_once __DIR__ . '/../app/Models/Usuario.php';
-require_once __DIR__ . '/../app/Services/WhatsAppService.php';
+// 1. Includes
+require_once __DIR__ . '/../config/bootstrap.php';
 
-// ... (função writeToLog - sem mudança) ...
+// 2. Usar os "Namespaces"
+use App\Models\Usuario;
+use App\Services\WhatsAppService;
+
+// 3. Logging
 $logFilePath = __DIR__ . '/../storage/cron_dicas_log.txt'; 
 function writeToLog($message) {
     global $logFilePath;
-    $logEntry = "[" . date('Y-m-d H:i:s') . "] (CRON_DICAS) " . $message . PHP_EOL;
-    file_put_contents($logFilePath, $logEntry, FILE_APPEND);
+    writeToLog($logFilePath, $message, "CRON_DICAS"); // Chama a global
 }
 
 writeToLog("--- CRON DICAS INICIADO ---");
 
-// ... (lista de $dicas - sem mudança) ...
+// 4. Lista de Dicas
 $dicas = [
     "Sabias que? 💡 Comprar frutas e vegetais da época pode poupar-te até 30% na feira!",
     "Dica Rápida: 🛒 Tenta nunca ir ao supermercado com fome. Vais acabar a comprar mais do que precisas!",
@@ -37,7 +37,7 @@ try {
     $dicaDoDia = $dicas[array_rand($dicas)];
     writeToLog("Dica do dia escolhida: " . $dicaDoDia);
 
-    $usuarios = Usuario::findAll($pdo); 
+    $usuarios = Usuario::findAll($pdo); // (Agora contém 'is_ativo')
     if (empty($usuarios)) {
         writeToLog("Nenhum usuário encontrado.");
         exit;
@@ -46,15 +46,25 @@ try {
 
     foreach ($usuarios as $usuario) {
         
-        // --- (INÍCIO DA NOVA LÓGICA) ---
-        // 1. Verifica se este usuário QUER receber esta dica
+        // (NOVA VERIFICAÇÃO) Não envia para utilizadores inativos
+        if ($usuario->is_ativo === false) {
+            writeToLog("... A saltar Usuário #{$usuario->id}: Inativo.");
+            continue;
+        }
+
+        // (VERIFICAÇÃO ANTIGA)
         if ($usuario->receber_dicas === false) {
             writeToLog("... A saltar Usuário #{$usuario->id}: Dicas desativadas.");
-            continue; // Salta para o próximo usuário
+            continue;
         }
-        // --- (FIM DA NOVA LÓGICA) ---
         
-        $waService->sendMessage($usuario->whatsapp_id, $dicaDoDia); 
+        try {
+            $waService->sendMessage($usuario->whatsapp_id, $dicaDoDia); 
+        } catch (Exception $e) {
+            writeToLog(
+                "!!! FALHA AO ENVIAR DICA para utilizador #{$usuario->id}: " . $e->getMessage()
+            );
+        }
     }
 
 } catch (Exception $e) {

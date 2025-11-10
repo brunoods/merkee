@@ -1,29 +1,29 @@
 <?php
 // ---
 // /app/Controllers/BotController.php
-// (VERSÃO COM ROTA PARA 'aguardando_nome')
+// (VERSÃO COM NAMESPACE)
 // ---
 
-// Models e Serviços essenciais que o BotController ainda usa
-require_once __DIR__ . '/../Models/Compra.php';
-require_once __DIR__ . '/../Models/Estabelecimento.php';
-require_once __DIR__ . '/../Models/HistoricoPreco.php';
-require_once __DIR__ . '/../Utils/StringUtils.php';
-require_once __DIR__ . '/../Models/ListaCompra.php';
-require_once __DIR__ . '/../Services/ItemParserService.php';
-require_once __DIR__ . '/../Services/ParsedItemDTO.php';
+// 1. Define o Namespace
+namespace App\Controllers;
 
-// Handlers
-require_once __DIR__ . '/Handlers/ListHandler.php';
-require_once __DIR__ . '/Handlers/ConfigHandler.php';
-require_once __DIR__ . '/Handlers/PurchaseStartHandler.php';
-require_once __DIR__ . '/Handlers/CronFinalizeHandler.php';
-require_once __DIR__ . '/../Services/CompraReportService.php';
-
-// --- (INÍCIO DA ATUALIZAÇÃO) ---
-// 1. Incluímos o nosso novo OnboardingHandler
-require_once __DIR__ . '/Handlers/OnboardingHandler.php';
-// --- (FIM DA ATUALIZAÇÃO) ---
+// 2. Importa TODAS as dependências
+use PDO;
+use Exception; // (Para o log de timeout)
+use App\Models\Compra;
+use App\Models\Estabelecimento;
+use App\Models\HistoricoPreco;
+use App\Models\ListaCompra;
+use App\Models\Usuario;
+use App\Utils\StringUtils;
+use App\Services\ItemParserService;
+use App\Services\ParsedItemDTO;
+use App\Services\CompraReportService;
+use App\Controllers\Handlers\ListHandler;
+use App\Controllers\Handlers\ConfigHandler;
+use App\Controllers\Handlers\PurchaseStartHandler;
+use App\Controllers\Handlers\CronFinalizeHandler;
+use App\Controllers\Handlers\OnboardingHandler;
 
 
 class BotController {
@@ -31,18 +31,16 @@ class BotController {
     private PDO $pdo;
     private Usuario $usuario;
     private ?Compra $compraAtiva;
+    
+    // Define o tempo que um estado pode ficar ativo antes de expirar
     private const TIMEOUT_MINUTOS = 10;
 
-    // Propriedades para cachear os Handlers
+    // Propriedades para cachear os Handlers (evita criar o mesmo objeto várias vezes)
     private ?ListHandler $listHandler = null;
     private ?ConfigHandler $configHandler = null;
     private ?PurchaseStartHandler $purchaseStartHandler = null;
     private ?CronFinalizeHandler $cronFinalizeHandler = null;
-    
-    // --- (INÍCIO DA ATUALIZAÇÃO) ---
-    // 2. Criamos a propriedade para o novo handler
     private ?OnboardingHandler $onboardingHandler = null;
-    // --- (FIM DA ATUALIZAÇÃO) ---
     
 
     public function __construct(PDO $pdo, Usuario $usuario, ?Compra $compraAtiva) {
@@ -51,21 +49,23 @@ class BotController {
         $this->compraAtiva = $compraAtiva;
     }
 
-    // --- (Getters para os Handlers) ---
+    // --- (Getters para os Handlers - Padrão "Lazy Load") ---
+    // (Isto garante que só criamos o Handler se precisarmos dele)
+
     private function getListHandler(): ListHandler {
         if ($this->listHandler === null) {
             $this->listHandler = new ListHandler($this->pdo, $this->usuario);
         }
         return $this->listHandler;
     }
-    
+
     private function getConfigHandler(): ConfigHandler {
         if ($this->configHandler === null) {
             $this->configHandler = new ConfigHandler($this->pdo, $this->usuario);
         }
         return $this->configHandler;
     }
-    
+
     private function getPurchaseStartHandler(): PurchaseStartHandler {
         if ($this->purchaseStartHandler === null) {
             $this->purchaseStartHandler = new PurchaseStartHandler($this->pdo, $this->usuario);
@@ -79,232 +79,183 @@ class BotController {
         }
         return $this->cronFinalizeHandler;
     }
-
-    // --- (INÍCIO DA ATUALIZAÇÃO) ---
-    // 3. Criamos o "Getter" para o OnboardingHandler
+    
     private function getOnboardingHandler(): OnboardingHandler {
         if ($this->onboardingHandler === null) {
             $this->onboardingHandler = new OnboardingHandler($this->pdo, $this->usuario);
         }
         return $this->onboardingHandler;
     }
-    // --- (FIM DA ATUALIZAÇÃO) ---
 
 
+    /**
+     * Ponto de entrada principal do Controller.
+     * Decide se a mensagem é um comando, um registo de item ou uma resposta a um estado.
+     */
     public function processMessage(string $messageText): string 
     {
-        $comando = trim(strtolower($messageText));
+        $comandoLimpo = strtolower(trim($messageText));
         
-        // Lógica de timeout
+        // 1. Verifica se o estado da conversa expirou (timeout)
         if ($this->usuario->conversa_estado && $this->usuario->conversa_estado_iniciado_em) {
-            if ($this->usuario->conversa_estado !== 'aguardando_confirmacao_finalizacao') {
-                $tempoInicio = strtotime($this->usuario->conversa_estado_iniciado_em);
-                $agora = time();
-                $minutosPassados = ($agora - $tempoInicio) / 60;
-                if ($minutosPassados > self::TIMEOUT_MINUTOS) {
+            try {
+                $inicioEstado = new \DateTime($this->usuario->conversa_estado_iniciado_em);
+                $agora = new \DateTime();
+                $intervalo = $agora->getTimestamp() - $inicioEstado->getTimestamp();
+                
+                if ($intervalo > (self::TIMEOUT_MINUTOS * 60)) {
+                    // O estado expirou!
+                    $estadoExpirado = $this->usuario->conversa_estado;
                     $this->usuario->clearState($this->pdo);
+                    
+                    // (Não podemos logar aqui, mas lançamos uma exceção que o webhook irá apanhar e logar)
+                    throw new Exception("Estado '{$estadoExpirado}' do Usuário #{$this->usuario->id} expirou. Estado foi limpo.");
                 }
-            }
-        }
-        
-        // Se está num estado, processa a conversa
-        if ($this->usuario->conversa_estado) {
-            if ($comando === 'cancelar') {
+            } catch (Exception $e) {
+                // (Ignora se a data for inválida, mas limpa o estado por segurança)
                 $this->usuario->clearState($this->pdo);
-                return "Ok, processo cancelado. 👍";
+                throw new Exception("Erro ao processar data do estado: " . $e->getMessage());
             }
-            return $this->handleStatefulConversation($comando);
+        }
+
+        // 2. Se o usuário está num estado de conversa, delega para o Handler
+        if ($this->usuario->conversa_estado) {
+            return $this->handleStatefulConversation($messageText); // (Usa $messageText original)
         }
         
-        // Se não está num estado, verifica se tem compra ativa ou não
+        // 3. Se não está num estado, trata como um novo comando
+        
+        // Se a compra está ativa, a lógica é diferente
         if ($this->compraAtiva) {
-            return $this->processStateWithPurchase($comando);
+            return $this->processStateWithPurchase($comandoLimpo);
         } else {
-            return $this->processStateWithoutPurchase($comando);
+            return $this->processStateWithoutPurchase($comandoLimpo);
         }
     }
 
 
     /**
      * Lida com todas as conversas que dependem de um estado (multi-passos)
+     * Ex: "aguardando_nome_lista", "aguardando_local_manual", etc.
      */
     private function handleStatefulConversation(string $respostaUsuario): string
     {
         $estado = $this->usuario->conversa_estado;
         $contexto = $this->usuario->conversa_contexto ?? [];
         
-        // --- (O ROTEADOR) ---
+        // Delega para o Handler apropriado com base no prefixo do estado
         
-        // Estados de GESTÃO DE LISTAS
-        if (in_array($estado, ['aguardando_nome_lista', 'adicionando_itens_lista', 'aguardando_lista_para_apagar'])) {
+        if (str_starts_with($estado, 'onboarding_') || $estado === 'aguardando_decisao_onboarding' || $estado === 'aguardando_nome_para_onboarding') {
+            return $this->getOnboardingHandler()->process($estado, $respostaUsuario, $contexto);
+        }
+        
+        if (str_starts_with($estado, 'lista_') || $estado === 'aguardando_nome_lista' || $estado === 'adicionando_itens_lista' || $estado === 'aguardando_lista_para_apagar') {
             return $this->getListHandler()->process($estado, $respostaUsuario, $contexto);
         }
-
-        // Estados de CONFIGURAÇÃO
-        if (in_array($estado, ['aguardando_configuracao'])) {
+        
+        if (str_starts_with($estado, 'config_') || $estado === 'aguardando_configuracao') {
             return $this->getConfigHandler()->process($estado, $respostaUsuario, $contexto);
         }
-
-        // Estados de INÍCIO DE COMPRA
-        $purchaseStartStates = [
-            'aguardando_confirmacao_ultimo_mercado', 'aguardando_nome_mercado',
-            'aguardando_cidade_estado', 'aguardando_confirmacao_mercado',
-            'aguardando_tipo_inicio', 'aguardando_lista_para_analise',
-            'aguardando_mercado_da_lista'
-        ];
-        if (in_array($estado, $purchaseStartStates)) {
+        
+        if (str_starts_with($estado, 'inicio_') || $estado === 'aguardando_local_manual_cidade' || $estado === 'aguardando_local_manual_estado' || $estado === 'aguardando_local_google' || $estado === 'aguardando_lista_para_iniciar') {
             return $this->getPurchaseStartHandler()->process($estado, $respostaUsuario, $contexto);
         }
         
-        // Estado de FINALIZAÇÃO (CRON)
-        if (in_array($estado, ['aguardando_confirmacao_finalizacao'])) {
-            return $this->getCronFinalizeHandler()->process($estado, $respostaUsuario, $contexto);
+        if ($estado === 'aguardando_confirmacao_finalizacao') {
+             return $this->getCronFinalizeHandler()->process($estado, $respostaUsuario, $contexto);
         }
         
-        // --- (INÍCIO DA ATUALIZAÇÃO) ---
-        // 4. (NOVO!) Estado de ONBOARDING (agora inclui o pedido de nome)
-        $onboardingStates = [
-            'aguardando_nome_para_onboarding', // <-- O NOVO ESTADO
-            'aguardando_decisao_onboarding',
-            'onboarding_registrar_1',
-            'onboarding_listas_1'
-        ];
-        if (in_array($estado, $onboardingStates)) {
-            return $this->getOnboardingHandler()->process($estado, $respostaUsuario, $contexto);
-        }
-        // --- (FIM DA ATUALIZAÇÃO) ---
-        
-
+        // Se o estado não for reconhecido, limpa e avisa
         $this->usuario->clearState($this->pdo);
-        return "Ops, algo estranho aconteceu (estado desconhecido: '{$estado}'). Vamos tentar de novo.";
+        return "Opa! 🤔 Parece que me perdi na nossa conversa. Vamos recomeçar. O que gostarias de fazer?";
     }
 
 
     /**
      * Lógica principal quando o usuário NÃO TEM compra ativa
-     * (Função "gatilho" de comandos)
+     * (Trata comandos de 'iniciar compra', 'listas', 'pesquisar', etc.)
      */
     private function processStateWithoutPurchase(string $comando): string {
         
-        // (Lógica de "Pesquisar" - continua aqui, pois não é "stateful")
+        // Comando: Pesquisar Preço (prioritário)
         if (str_starts_with($comando, 'pesquisar') || str_starts_with($comando, 'comparar')) {
-            $partesComando = explode(' ', $comando, 2);
-            $produtoNome = trim($partesComando[1] ?? '');
-            if (empty($produtoNome)) {
-                return "Formato inválido. 😕\nUse: *pesquisar <nome do produto>*\nExemplo: *pesquisar café pilão 500g*";
+            $partes = explode(' ', $comando, 2);
+            if (count($partes) < 2 || empty(trim($partes[1]))) {
+                return "Para pesquisar, envie *pesquisar <nome do produto>* (ex: *pesquisar arroz 5kg*).";
             }
+            
+            $nomeProduto = trim($partes[1]);
+            $nomeNormalizado = StringUtils::normalize($nomeProduto);
+
+            // Tenta encontrar a cidade do usuário
             $ultimoLocal = Compra::findLastCompletedByUser($this->pdo, $this->usuario->id);
-            if (!$ultimoLocal) {
-                return "Preciso que completes pelo menos uma compra antes de poderes pesquisar preços, para eu saber qual é a tua cidade. 😉";
+            if (!$ultimoLocal || empty($ultimoLocal['cidade'])) {
+                return "Ainda não sei em que cidade estás. 📍\n\nPara pesquisar preços, por favor, *inicia uma compra* primeiro. Assim, saberei onde procurar.";
             }
             $cidadeUsuario = $ultimoLocal['cidade'];
-            if (empty($cidadeUsuario)) {
-                 return "Não consegui identificar a tua cidade. 😥\nPor favor, inicia uma nova compra (podes cancelar logo a seguir) para que eu possa registar a tua localização.";
+            
+            $precos = HistoricoPreco::findBestPricesInCity($this->pdo, $nomeNormalizado, $cidadeUsuario, 30);
+            
+            if (empty($precos)) {
+                return "Não encontrei registos recentes para *{$nomeProduto}* em *{$cidadeUsuario}*. 😕";
             }
-            $nomeNormalizado = StringUtils::normalize($produtoNome);
-            $resultados = HistoricoPreco::findBestPricesInCity($this->pdo, $nomeNormalizado, $cidadeUsuario);
-            if (empty($resultados)) {
-                return "Que pena! 😥 Não encontrei registos recentes para '*{$produtoNome}*' em *{$cidadeUsuario}*.";
-            }
-            $resposta = "Encontrei estes preços para '*{$produtoNome}*' em *{$cidadeUsuario}* (últimos 30 dias):\n\n";
-            $i = 1;
-            foreach ($resultados as $mercado) {
-                $min = number_format($mercado['preco_minimo'], 2, ',', '.');
-                $med = number_format($mercado['preco_medio'], 2, ',', '.');
-                $resposta .= "*{$i}) {$mercado['estabelecimento_nome']}*\n";
-                $resposta .= "   💰 *Menor Preço:* R$ {$min}\n";
-                $resposta .= "   📊 *Preço Médio:* R$ {$med} (baseado em {$mercado['total_registos']} registos)\n\n";
-                $i++;
+            
+            $resposta = "Resultados para *{$nomeProduto}* em *{$cidadeUsuario}* (últimos 30 dias):\n";
+            foreach ($precos as $preco) {
+                $precoFmt = number_format((float)$preco['preco_minimo'], 2, ',', '.');
+                $dataFmt = (new \DateTime($preco['data_mais_recente']))->format('d/m/Y');
+                $resposta .= "\n📍 *{$preco['estabelecimento_nome']}*";
+                $resposta .= "\n💰 *R$ {$precoFmt}* (visto em {$dataFmt})";
             }
             return $resposta;
         }
 
-        // Comandos "state-trigger" (que iniciam um fluxo nos Handlers)
+        // Comandos "state-trigger" (que iniciam uma conversa)
         switch ($comando) {
             
             case 'iniciar compra':
-                $listas = ListaCompra::findAllByUser($this->pdo, $this->usuario->id);
-                if (!empty($listas)) {
-                    $this->usuario->updateState($this->pdo, 'aguardando_tipo_inicio');
-                    $resposta = "Olá! 👋\nComo queres começar a tua compra?\n\n";
-                    $resposta .= "*1)* Usar uma lista de compras (e comparar preços 📊)\n";
-                    $resposta .= "*2)* Registar manualmente (como antes)\n\n";
-                    $resposta .= "(Podes também dizer `ver listas` ou `criar lista` a qualquer momento)";
-                    return $resposta;
-                } else {
-                    return $this->getPurchaseStartHandler()->process('aguardando_tipo_inicio', '2', []);
-                }
+                // Deixa o Handler de "Início de Compra" tomar conta
+                return $this->getPurchaseStartHandler()->process('inicio_start', $comando, []);
             
+            case 'listas':
             case 'criar lista':
-                $this->usuario->updateState($this->pdo, 'aguardando_nome_lista');
-                return "Vamos criar uma nova lista! 📝\n\nQual nome queres dar a ela? (ex: *Compras do Mês*, *Churrasco FDS*)";
-
             case 'ver listas':
-                return $this->getPurchaseStartHandler()->process('aguardando_tipo_inicio', '3', []);
-
             case 'apagar lista':
-            case 'deletar lista':
-                $listas = ListaCompra::findAllByUser($this->pdo, $this->usuario->id);
-                if (empty($listas)) {
-                    return "Não tens nenhuma lista guardada para apagar. 😕";
-                }
-                $resposta = "Qual lista queres apagar? 🗑️\n\n";
-                $contextoListas = [];
-                $i = 1;
-                foreach ($listas as $lista) {
-                    $resposta .= "*{$i})* {$lista->nome_lista}\n";
-                    $contextoListas[$i] = ['id' => $lista->id, 'nome' => $lista->nome_lista];
-                    $i++;
-                }
-                $resposta .= "\nDigite o *número* da lista para apagar, ou *cancelar*.";
-                $this->usuario->updateState($this->pdo, 'aguardando_lista_para_apagar', ['listas_para_apagar' => $contextoListas]);
-                return $resposta;
-
+                // Deixa o Handler de "Listas" tomar conta
+                return $this->getListHandler()->process('lista_start', $comando, []);
+                
             case 'config':
+            case 'configurar':
             case 'configurações':
-            case 'configuracoes':
-                $this->usuario->updateState($this->pdo, 'aguardando_configuracao');
-                $statusAlertas = $this->usuario->receber_alertas ? "Ativado 🔔" : "Desativado 🔕";
-                $statusDicas = $this->usuario->receber_dicas ? "Ativado 💡" : "Desativado 🔇";
-                $resposta = "Menu de Configurações ⚙️\n";
-                $resposta .= "O que queres alterar?\n\n";
-                $resposta .= "*1)* Receber Alertas de Preço\n    (Status: *{$statusAlertas}*)\n\n";
-                $resposta .= "*2)* Receber Dicas Aleatórias\n    (Status: *{$statusDicas}*)\n\n";
-                $resposta .= "Digite o número (1 ou 2) para alterar, ou *cancelar* para sair.";
-                return $resposta;
+                // Deixa o Handler de "Config" tomar conta
+                return $this->getConfigHandler()->process('config_start', $comando, []);
 
-            // --- (ATUALIZAÇÃO) ---
-            // (A lógica de saudações agora inicia o Onboarding)
             case 'ajuda':
-            case '?':
-            case 'oi':
-            case 'ola':
+            case 'comandos':
+            case 'tutorial':
+                return OnboardingHandler::getMensagemAjudaCompleta();
+            
             case 'olá':
+            case 'oi':
             case 'bom dia':
             case 'boa tarde':
             case 'boa noite':
-            case 'eai':
-            case 'eae':
-            case 'salve':
-                $this->usuario->updateState($this->pdo, 'aguardando_decisao_onboarding');
-                return OnboardingHandler::getMensagemInicialOnboarding();
-            
+                $nome = $this->usuario->nome ? explode(' ', $this->usuario->nome)[0] : "Olá";
+                return "Olá, {$nome}! 👋\nPosso ajudar-te a iniciar uma compra, gerir as tuas listas ou pesquisar preços.\n\nEnvia *comandos* para ver todas as opções.";
+
             default:
-                // Se o utilizador disser qualquer outra coisa não reconhecida,
-                // assume que ele quer ajuda (onboarding).
-                $this->usuario->updateState($this->pdo, 'aguardando_decisao_onboarding');
-                return OnboardingHandler::getMensagemInicialOnboarding();
-            // --- (FIM DA ATUALIZAÇÃO) ---
+                return "Desculpa, não entendi. 😕\nEnvia *comandos* para ver tudo o que posso fazer.";
         }
     }
 
 
     /**
-     * Lógica de finalizar compra
+     * Lógica de finalizar compra (chamada internamente)
      */
     private function finalizarCompra(Compra $compra): string
     {
-        // (Delega para o CompraReportService)
+        // Delega 100% da lógica de geração de relatório para o Serviço
+        // (O try/catch disto será feito no webhook.php)
         return CompraReportService::gerarResumoFinalizacao($this->pdo, $compra);
     }
 
@@ -314,15 +265,13 @@ class BotController {
      */
     private function processStateWithPurchase(string $comando): string {
         
+        // Comando: Finalizar Compra
         if ($comando === 'finalizar compra') {
-            try {
-                return $this->finalizarCompra($this->compraAtiva);
-            } catch (\PDOException $e) {
-                writeToLog("!!! ERRO AO FINALIZAR !!!: " . $e->getMessage());
-                return "❌ Ops! Tive um problema ao finalizar sua compra. Parece que minha base de dados está desatualizada. Já avisei o suporte!";
-            }
+            // (A exceção do PDO (se ocorrer) será lançada para o webhook.php)
+            return $this->finalizarCompra($this->compraAtiva);
         }
 
+        // Se não for 'finalizar', tenta "parsear" (traduzir) o item
         $parser = new ItemParserService();
         $item = $parser->parse($comando);
 
@@ -330,55 +279,63 @@ class BotController {
             return $item->errorMessage ?? "Não entendi o formato, desculpe. 😕";
         }
         
-        try {
-            $this->compraAtiva->addItem(
-                $this->pdo, 
-                $item->nomeProduto, 
-                $item->quantidadeDesc, 
-                $item->quantidadeInt, 
-                $item->precoPagoFloat, 
-                $item->precoNormalFloat 
-            );
-        } catch (\PDOException $e) {
-            writeToLog("!!! ERRO AO ADICIONAR ITEM !!!: " . $e->getMessage());
-            return "❌ Ops! Tive um problema ao salvar esse item. Parece que minha base de dados está desatualizada. Já avisei o suporte!";
+        // (A exceção do PDO (se ocorrer) será lançada para o webhook.php)
+        $this->compraAtiva->addItem(
+            $this->pdo, 
+            $item->nomeProduto, 
+            $item->quantidadeDesc, 
+            $item->quantidadeInt, 
+            $item->precoPagoFloat, 
+            $item->precoNormalFloat 
+        );
+        
+        // --- Feedback de Sucesso ---
+        
+        // Formata o nome (remove '1un' se for o caso)
+        $nomeProdutoDisplay = $item->nomeProduto;
+        if ($item->quantidadeDesc === '1un' && $item->quantidadeInt === 1) {
+             $nomeProdutoDisplay = preg_replace('/\b1un\b/i', '', $nomeProdutoDisplay);
+             $nomeProdutoDisplay = trim(preg_replace('/\s+/', ' ', $nomeProdutoDisplay));
         }
         
         $precoPagoTotal = $item->precoPagoFloat * $item->quantidadeInt;
         $precoPagoTotalFmt = number_format($precoPagoTotal, 2, ',', '.');
-        $nomeProdutoDisplay = $item->quantidadeInt > 1 ? "{$item->quantidadeInt}x {$item->nomeProduto}" : $item->nomeProduto;
         
-        $resposta = "Registrado! ✅\n*{$nomeProdutoDisplay}* ({$item->quantidadeDesc}) - *R$ {$precoPagoTotalFmt}*";
+        $resposta = "Registado! ✅\n*{$nomeProdutoDisplay}* ({$item->quantidadeDesc}) - *R$ {$precoPagoTotalFmt}*";
         
-        if ($item->promocaoDetectada) {
-            $precoNormalTotal = $item->precoNormalFloat * $item->quantidadeInt;
-            $economiaTotal = $precoNormalTotal - $precoPagoTotal;
-            $resposta .= "\n💰 *Ótima promoção!* (De R$ " . number_format($precoNormalTotal, 2, ',', '.') . ". Economizou R$ " . number_format($economiaTotal, 2, ',', '.') . ")";
-        } elseif ($item->quantidadeInt > 1) {
-            $resposta .= "\n_(Total de {$item->quantidadeInt}un a R$ " . number_format($item->precoPagoFloat, 2, ',', '.') . " cada)_";
+        // Feedback de Promoção
+        if ($item->promocaoDetectada && $item->precoNormalFloat > $item->precoPagoFloat) {
+            $economiaItem = ($item->precoNormalFloat - $item->precoPagoFloat) * $item->quantidadeInt;
+            $economiaFmt = number_format($economiaItem, 2, ',', '.');
+            $resposta .= "\n🤑 Boa! Poupaste *R$ {$economiaFmt}* nesta promoção!";
         }
         
+        // Feedback de Comparação de Histórico
         $nomeNormalizado = StringUtils::normalize($item->nomeProduto);
-        $ultimoRegistro = HistoricoPreco::getUltimoRegistro(
-            $this->pdo, $this->usuario->id, $nomeNormalizado, $this->compraAtiva->id 
+        $historico = HistoricoPreco::getUltimoRegistro(
+            $this->pdo, 
+            $this->usuario->id, 
+            $nomeNormalizado, 
+            $this->compraAtiva->id
         );
         
-        if ($ultimoRegistro !== null) {
-            $ultimoPrecoUnitario = (float)$ultimoRegistro['preco'];
-            $localCompraAntiga = $ultimoRegistro['estabelecimento_id'] == $this->compraAtiva->estabelecimento_id
-                ? "aqui mesmo"
-                : "no *{$ultimoRegistro['estabelecimento_nome']}*";
-            $precoAntigoFmt = number_format($ultimoPrecoUnitario, 2, ',', '.');
-            $diferenca = $item->precoPagoFloat - $ultimoPrecoUnitario;
-
-            if (abs($diferenca) < 0.001) {
-                $resposta .= "\n\n💡 *Você pagou o mesmo valor unitário (R$ {$precoAntigoFmt}) {$localCompraAntiga} da última vez.*";
-            } elseif ($diferenca < 0) {
-                 $resposta .= "\n\n✨ *Ótimo! Você pagou R$ {$precoAntigoFmt} (un) {$localCompraAntiga} da última vez.*";
-            } else {
-                $resposta .= "\n\n🔺 *Atenção! Você pagou R$ {$precoAntigoFmt} (un) {$localCompraAntiga} da última vez.*";
+        if ($historico) {
+            $ultimoPrecoUnit = (float)$historico['preco_unitario'];
+            $precoAtualUnit = $item->precoPagoFloat / $item->quantidadeInt; // (Calcula o preço unitário atual)
+            
+            $diff = $precoAtualUnit - $ultimoPrecoUnit;
+            $percentual = $ultimoPrecoUnit > 0 ? ($diff / $ultimoPrecoUnit) * 100 : 0;
+            
+            $ultimoPrecoFmt = number_format($ultimoPrecoUnit, 2, ',', '.');
+            $localUltimaCompra = $historico['estabelecimento_nome'] ?? 'outra loja';
+            
+            if ($diff > 0.01 && $percentual > 5) { // Subiu mais de 5%
+                $resposta .= "\n📈 *Atenção:* Pagaste *R$ {$ultimoPrecoFmt}* (unid.) em {$localUltimaCompra} da última vez.";
+            } elseif ($diff < -0.01 && $percentual < -5) { // Caiu mais de 5%
+                $resposta .= "\n📉 *Ótimo preço!* Pagaste *R$ {$ultimoPrecoFmt}* (unid.) em {$localUltimaCompra} da última vez.";
             }
         }
+        
         return $resposta . "\n\nPróximo item?";
     }
 

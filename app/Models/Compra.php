@@ -4,7 +4,12 @@
 // AGORA COM LÓGICA PARA "INÍCIO RÁPIDO" E PESQUISA DE PREÇO
 // ---
 
-require_once __DIR__ . '/../Utils/StringUtils.php'; 
+// 1. (A CORREÇÃO) Garante que esta linha existe
+namespace App\Models;
+
+// 2. (A CORREÇÃO) Adiciona as dependências que a classe usa
+use PDO;
+use App\Utils\StringUtils;
 
 class Compra {
     

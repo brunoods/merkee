@@ -10,6 +10,7 @@ namespace App\Services;
 /**
  * Data Transfer Object (DTO)
  * É um "contrato" simples que diz quais dados o ItemParserService extraiu.
+ * Não tem lógica, apenas armazena dados.
  */
 class ParsedItemDTO {
     
@@ -28,6 +29,7 @@ class ParsedItemDTO {
      * Verifica se o parsing foi bem sucedido.
      */
     public function isSuccess(): bool {
+        // Precisa de um preço para ser válido
         return $this->errorMessage === null && $this->precoPagoFloat !== null;
     }
 }

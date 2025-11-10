@@ -30,10 +30,10 @@ class StringUtils {
             $string = @iconv('UTF-8', 'ASCII//TRANSLIT', $string);
         }
 
-        // 3. (NOVO!) Remove prefixos de quantidade
+        // 3. Remove prefixos de quantidade (ex: "1x ", "1un ", "1 ")
         $string = preg_replace('/^(\d+ ?[xX] ?|\d+ ?[uU][nN] ?|\d+ ?)/', '', $string);
 
-        // 4. Remove caracteres especiais
+        // 4. Remove caracteres especiais (mantém letras, números e espaços)
         $string = preg_replace('/[^a-z0-9\s]/', '', $string);
         
         // 5. Substitui múltiplos espaços por um único espaço

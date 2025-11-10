@@ -1,18 +1,25 @@
 <?php
 // ---
 // /app/Services/CompraReportService.php
-// (NOVO FICHEIRO)
+// (VERSÃO COM NAMESPACE)
+// Responsável por GERAR O TEXTO do relatório de finalização de compra.
+// Esta lógica é partilhada entre o BotController e o CronFinalizeHandler.
 // ---
 
-// Modelos e Serviços necessários para gerar o relatório
-require_once __DIR__ . '/../Models/Compra.php';
-require_once __DIR__ . '/../Models/Estabelecimento.php';
-require_once __DIR__ . '/../Models/HistoricoPreco.php';
-require_once __DIR__ . '/../Utils/StringUtils.php';
+// 1. Define o Namespace
+namespace App\Services;
+
+// 2. Importa as dependências
+use PDO;
+use App\Models\Compra;
+use App\Models\Estabelecimento;
+use App\Models\HistoricoPreco;
+use App\Utils\StringUtils;
+use DateTime; // (Classe global do PHP)
 
 /**
- * Responsável por gerar o TEXTO do relatório de finalização de compra.
- * Esta lógica é partilhada entre o BotController e o CronFinalizeHandler.
+ * Classe de Serviço
+ * Centraliza a lógica de geração de relatórios de compra.
  */
 class CompraReportService {
 
@@ -26,109 +33,82 @@ class CompraReportService {
     public static function gerarResumoFinalizacao(PDO $pdo, Compra $compra): string
     {
         // 1. Finaliza a compra (obtém os totais e itens)
-        // (Esta é a lógica que estava no início de 'finalizarCompra')
+        // Este método 'finalize' ATUALIZA o status e retorna os dados
         $resumo = $compra->finalize($pdo);
         $totalGasto = $resumo['total']; 
-        $itens = $resumo['itens']; 
+        $itens = $resumo['itens']; // Itens desta compra
+        
         $estabelecimento = Estabelecimento::findById($pdo, $compra->estabelecimento_id);
         $nomeLocal = $estabelecimento ? "$estabelecimento->nome ($estabelecimento->cidade/$estabelecimento->estado)" : "Local desconhecido";
+        
+        // (Usa a classe DateTime global importada com 'use')
+        $dataCompra = (new DateTime($compra->data_inicio))->format('d/m/Y');
+
 
         // 2. Monta o cabeçalho
         $resposta = "Compra finalizada! 🛍️\n\n";
-        $resposta .= "📍 *Local:* $nomeLocal\n";
-        $resposta .= "💰 *Total gasto:* R$ " . number_format($totalGasto, 2, ',', '.');
-        $resposta .= "\n--- *Itens Registrados* ---\n";
+        $resposta .= "Resumo da tua compra em *{$nomeLocal}* no dia {$dataCompra}:\n\n";
+        $resposta .= "Total Gasto: *R$ " . number_format($totalGasto, 2, ',', '.') . "*\n";
+        
+        $totalPoupado = 0;
+        $totalPromocoes = 0;
 
-        if (empty($itens)) {
-             $resposta .= "(Nenhum item registrado)";
-             return $resposta;
-        }
-
-        // 3. Agrupa os itens
-        $itensAgrupados = [];
+        // 3. Itera sobre os itens para calcular poupanças
         foreach ($itens as $item) {
-            $key = $item['produto_nome_normalizado'] . '_' . $item['preco']; 
-            if (!isset($itensAgrupados[$key])) {
-                $itensAgrupados[$key] = [
-                    'nome' => $item['produto_nome'], 
-                    'nome_normalizado' => $item['produto_nome_normalizado'], 
-                    'qtd_desc' => $item['quantidade_desc'], 
-                    'preco_unitario' => (float)$item['preco'], 
-                    'preco_normal_unitario' => $item['preco_normal'] ? (float)$item['preco_normal'] : 0.0,
-                    'em_promocao' => (bool)$item['em_promocao'],
-                    'contagem_total' => 0 
-                ];
+            if ($item['em_promocao'] && $item['preco_normal'] > $item['preco']) {
+                $totalPromocoes++;
+                $totalPoupado += ((float)$item['preco_normal'] - (float)$item['preco']) * (int)$item['quantidade'];
             }
-            $itensAgrupados[$key]['contagem_total'] += (int)$item['quantidade'];
         }
 
-        // 4. Monta a linha de cada item do resumo (COM LÓGICA DE TENDÊNCIA)
-        foreach ($itensAgrupados as $item) {
-            $nomeProdutoOriginal = $item['nome']; 
-            $nomeProdutoNormalizado = StringUtils::normalize($item['nome_normalizado']); 
-            $precoUnitario = $item['preco_unitario'];
-            $precoNormalUnitario = $item['preco_normal_unitario'];
-            $emPromocao = $item['em_promocao'];
-            $contagemTotal = $item['contagem_total'];
-            $precoUnitarioFmt = number_format($precoUnitario, 2, ',', '.');
-            $contagemStr = $contagemTotal > 1 ? " (x{$contagemTotal})" : "";
-            $nomeLimpo = trim(preg_replace('/^(\d+ ?[xX*uUuNn]?) ?/','', $nomeProdutoOriginal));
-            
-            $linhaItem = "• {$nomeLimpo} ({$item['qtd_desc']}) - R$ {$precoUnitarioFmt}{$contagemStr}"; 
-            
-            if ($emPromocao && $precoNormalUnitario > $precoUnitario) {
-                $precoNormalFmt = number_format($precoNormalUnitario, 2, ',', '.');
-                $linhaItem .= " (💰 *Promo!* De R$ {$precoNormalFmt})";
-            }
-
-            // Compara com o último preço pago
-            $ultimoRegistro = HistoricoPreco::getUltimoRegistro(
-                $pdo, $compra->usuario_id, $nomeProdutoNormalizado, $compra->id
-            );
-            if ($ultimoRegistro !== null) {
-                $ultimoPrecoUnitario = (float)$ultimoRegistro['preco']; 
-                $diferenca = $precoUnitario - $ultimoPrecoUnitario; 
-                if (abs($diferenca) > 0.001) { 
-                    $localCompraAntiga = $ultimoRegistro['estabelecimento_id'] == $compra->estabelecimento_id 
-                        ? "aqui mesmo" 
-                        : "no *{$ultimoRegistro['estabelecimento_nome']}*";
-                    if ($diferenca > 0) {
-                        $linhaItem .= " (🔺 *R$ " . number_format($diferenca, 2, ',', '.') . " mais caro* que {$localCompraAntiga})";
-                    } elseif ($diferenca < 0) {
-                        $linhaItem .= " (✨ *R$ " . number_format(abs($diferenca), 2, ',', '.') . " mais barato* que {$localCompraAntiga})";
-                    }
-                }
-            }
-
-            // Mostra a tendência de preços
-            $trendPrecos = HistoricoPreco::getPriceTrend(
-                $pdo, $compra->usuario_id, $nomeProdutoNormalizado, $compra->id
-            );
-            $trendPrecos[] = $precoUnitario; 
-            if (count($trendPrecos) > 1) { 
-                $linhaTrend = "  (Últimos preços: ";
-                $trendFormatada = [];
-                foreach ($trendPrecos as $p) {
-                    $trendFormatada[] = "R$ " . number_format((float)$p, 2, ',', '.');
-                }
-                $ultimoIndex = count($trendFormatada) - 1;
-                $trendFormatada[$ultimoIndex] = "*" . $trendFormatada[$ultimoIndex] . "*";
-                $linhaTrend .= implode(' → ', $trendFormatada) . ")";
-                
-                if (count($trendPrecos) >= 3) {
-                    $primeiroPreco = (float)$trendPrecos[0];
-                    $ultimoPreco = (float)$trendPrecos[$ultimoIndex];
-                    if ($ultimoPreco > $primeiroPreco + 0.001) { 
-                        $linhaTrend .= " 📈";
-                    } elseif ($ultimoPreco < $primeiroPreco - 0.001) { 
-                        $linhaTrend .= " 📉";
-                    }
-                }
-                $linhaItem .= "\n" . $linhaTrend;
-            }
-            $resposta .= $linhaItem . "\n";
+        if ($totalPoupado > 0.01) {
+            $resposta .= "Promoções: *{$totalPromocoes}* itens\n";
+            $resposta .= "Total Poupado: *R$ " . number_format($totalPoupado, 2, ',', '.') . "* 🤑\n";
         }
         
+        $resposta .= "\n--- *Detalhes e Comparações* ---\n";
+
+        // 4. Itera sobre os itens para comparar preços
+        foreach ($itens as $item) {
+            $nomeProduto = $item['produto_nome'];
+            // (Usa a classe StringUtils importada com 'use')
+            $nomeNormalizado = StringUtils::normalize($nomeProduto);
+            $precoPagoUnit = (float)$item['preco']; // Preço unitário pago
+            $quantidade = (int)$item['quantidade'];
+            $precoPagoFmt = number_format($precoPagoUnit, 2, ',', '.');
+            
+            $resposta .= "\n*{$nomeProduto}* ({$quantidade}un)";
+            $resposta .= "\n  Pagaste: *R$ {$precoPagoFmt}* (unid.)";
+
+            // Busca o último preço pago ANTES desta compra
+            // (Usa a classe HistoricoPreco importada com 'use')
+            $historico = HistoricoPreco::getUltimoRegistro(
+                $pdo, 
+                $compra->usuario_id, 
+                $nomeNormalizado, 
+                $compra->id // ID da compra atual para excluir
+            );
+
+            if ($historico) {
+                $ultimoPrecoUnit = (float)$historico['preco_unitario'];
+                $ultimoPrecoFmt = number_format($ultimoPrecoUnit, 2, ',', '.');
+                $localUltimaCompra = $historico['estabelecimento_nome'] ?? 'outra loja';
+                $dataUltimaCompra = (new DateTime($historico['data_compra']))->format('d/m');
+                
+                $diff = $precoPagoUnit - $ultimoPrecoUnit;
+
+                if (abs($diff) < 0.01) { // (Considera igual se a diferença for < 1 cêntimo)
+                    $resposta .= "\n  Histórico: (Manteve 😐) R$ {$ultimoPrecoFmt} em {$localUltimaCompra}";
+                } elseif ($diff > 0) {
+                    $resposta .= "\n  Histórico: (Subiu 📈) R$ {$ultimoPrecoFmt} em {$localUltimaCompra} ({$dataUltimaCompra})";
+                } else {
+                    $resposta .= "\n  Histórico: (Baixou 📉) R$ {$ultimoPrecoFmt} em {$localUltimaCompra} ({$dataUltimaCompra})";
+                }
+            } else {
+                $resposta .= "\n  Histórico: (Primeiro registo! 🥇)";
+            }
+        }
+
         return $resposta;
     }
 }

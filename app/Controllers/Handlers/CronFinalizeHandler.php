@@ -1,77 +1,86 @@
 <?php
 // ---
 // /app/Controllers/Handlers/CronFinalizeHandler.php
-// (VERSÃO 2.0 - AGORA ENVIA O RESUMO COMPLETO)
+// (VERSÃO COM NAMESPACE)
 // ---
 
-require_once __DIR__ . '/BaseHandler.php'; // O "molde"
-require_once __DIR__ . '/../../Models/Compra.php';
+// 1. Define o Namespace
+namespace App\Controllers\Handlers;
 
-// --- (INÍCIO DA ATUALIZAÇÃO) ---
-// 1. Incluímos o novo Serviço de Relatório
-require_once __DIR__ . '/../../Services/CompraReportService.php';
-// --- (FIM DA ATUALIZAÇÃO) ---
+// 2. Importa dependências
+use App\Models\Compra;
+use App\Services\CompraReportService; // (Serviço partilhado)
+// (BaseHandler está no mesmo namespace)
 
 /**
  * Gere o fluxo de conversa do CRON que pergunta ao usuário
  * se ele quer finalizar uma compra inativa.
  */
-class CronFinalizeHandler extends BaseHandler {
+class CronFinalizeHandler extends BaseHandler { // (Funciona)
 
     /**
-     * Ponto de entrada. O BotController chama este método.
+     * Ponto de entrada.
      */
     public function process(string $estado, string $respostaUsuario, array $contexto): string
     {
-        // Este handler é simples e só gere um estado.
+        // Este Handler só tem um estado
         if ($estado === 'aguardando_confirmacao_finalizacao') {
-            return $this->handleConfirmacaoFinalizacao($respostaUsuario, $contexto);
+             return $this->handleConfirmacaoFinalizacao($respostaUsuario, $contexto);
         }
-
-        // Segurança
+        
         $this->usuario->clearState($this->pdo);
-        return "Ops, algo correu mal (Handler de Finalização). Vamos recomeçar.";
+        return "Opa! 🤔 Parece que me perdi. O que gostarias de fazer?";
     }
-
-    // --- (LÓGICA MOVIDA DIRETAMENTE DO BotController) ---
 
     /**
      * Lógica do estado: aguardando_confirmacao_finalizacao
-     * (AGORA DEVOLVE O RESUMO COMPLETO)
      */
     private function handleConfirmacaoFinalizacao(string $respostaUsuario, array $contexto): string
     {
         $respostaLimpa = trim(strtolower($respostaUsuario));
+        
+        // Verifica se o ID da compra ainda está no contexto
+        if (!isset($contexto['compra_id'])) {
+            $this->usuario->clearState($this->pdo);
+            return "Erro: Não sei a qual compra te referes. 😕";
+        }
+        
         $compra = Compra::findById($this->pdo, $contexto['compra_id']);
         
-        if (!$compra || $compra->status === 'finalizada') {
+        // Verifica se a compra ainda existe e está ativa
+        if (!$compra || $compra->status !== 'ativa') {
             $this->usuario->clearState($this->pdo);
-            return "Ops, parece que esta compra já foi finalizada. Pode iniciar uma nova!";
+            return "Essa compra já foi finalizada ou cancelada. 👍";
         }
 
+        // --- Processa a resposta (Sim ou Não) ---
+        
         if ($respostaLimpa === 'sim' || $respostaLimpa === 's') {
             
-            // --- (INÍCIO DA ATUALIZAÇÃO) ---
-            // 2. Agora chamamos o mesmo serviço que o BotController usa
             try {
-                
-                // Chamamos o serviço que faz tudo:
-                $respostaCompleta = CompraReportService::gerarResumoFinalizacao($this->pdo, $compra);
+                // Usa o mesmo Serviço que o BotController usa!
+                $respostaCompleta = CompraReportService::gerarResumoFinalizacao($this->pdo, $compra); 
                 
                 $this->usuario->clearState($this->pdo);
-                return $respostaCompleta; // <--- Devolve o resumo completo!
+                return $respostaCompleta; 
 
             } catch (\PDOException $e) {
-                 // writeToLog("!!! ERRO AO FINALIZAR (vinda do CRON) !!!: " . $e->getMessage());
-                 return "❌ Ops! Tive um problema ao finalizar sua compra.";
+                 // (O webhook.php irá logar este erro)
+                 $this->usuario->clearState($this->pdo);
+                 return "❌ Ops! Tive um problema ao finalizar a tua compra. Por favor, tenta enviar *finalizar compra* manualmente.";
             }
-            // --- (FIM DA ATUALIZAÇÃO) ---
 
         } elseif ($respostaLimpa === 'nao' || $respostaLimpa === 'n' || $respostaLimpa === 'não') {
+            
+            // Apenas limpa o estado. A compra continua ativa.
+            // O CRON Job não vai perguntar de novo (porque o estado foi limpo).
             $this->usuario->clearState($this->pdo);
-            return "Sem problemas! 👍 Pode continuar a adicionar itens.";
+            return "Entendido! A compra continua ativa. 👍\n\nQuando quiseres, podes continuar a registar itens ou enviar *finalizar compra*.";
+        
         } else {
-            return "Não entendi 😕. Responda apenas *sim* ou *nao*.";
+            // Pede de novo (mantém o estado)
+            $this->usuario->updateState($this->pdo, 'aguardando_confirmacao_finalizacao', $contexto);
+            return "Não entendi. 😕 Por favor, responde apenas com *sim* ou *não*.";
         }
     }
 }

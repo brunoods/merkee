@@ -4,6 +4,13 @@
 // (VERSÃO ATUALIZADA COM OTIMIZAÇÃO DE LISTA)
 // ---
 
+// 1. (A CORREÇÃO)
+namespace App\Models;
+
+// 2. (A CORREÇÃO)
+use PDO;
+use DateTime;
+
 class HistoricoPreco {
 
     public static function getUltimoRegistro(PDO $pdo, int $usuario_id, string $produtoNomeNormalizado, int $compraAtualId): ?array

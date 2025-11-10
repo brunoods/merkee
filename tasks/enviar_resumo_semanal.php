@@ -34,7 +34,7 @@ try {
 
     foreach ($usuarios as $usuario) {
         
-        // (NOVA VERIFICAÇÃO)
+        // (NOVA VERIFICAÇÃO) Não envia para utilizadores inativos
         if ($usuario->is_ativo === false) {
             writeToLog("A saltar Usuário #{$usuario->id}: Inativo.");
             continue;

@@ -48,21 +48,28 @@ try {
     // 6. Envia mensagem para cada utilizador
     foreach ($comprasInativas as $compraData) {
         $compra = Compra::findById($pdo, $compraData['id']);
-        $usuario = Usuario::findById($pdo, $compra->usuario_id);
-        $est = Estabelecimento::findById($pdo, $compra->estabelecimento_id);
+        $usuario = Usuario::findById($pdo, $compraData['usuario_id']);
         
-        // (Pequena salvaguarda caso algo seja apagado)
-        if (!$compra || !$usuario || !$est) {
-            writeToLog("A ignorar compra #{$compraData['id']}: dados inconsistentes (utilizador ou estab. apagado).");
+        // (Salvaguarda para dados órfãos)
+        if (!$compra || !$usuario) {
+            writeToLog("A ignorar compra #{$compraData['id']}: dados inconsistentes (utilizador ou compra não encontrados).");
             continue;
         }
 
+        // (NOVO) Não envia para utilizadores inativos
+        if ($usuario->is_ativo === false) {
+             writeToLog("A ignorar utilizador #{$usuario->id} (compra #{$compra->id}) porque está INATIVO.");
+             continue;
+        }
+
+        $est = Estabelecimento::findById($pdo, $compra->estabelecimento_id);
         $nomeEst = $est ? $est->nome : "um local desconhecido";
         $nomeUsuario = $usuario->nome ? $usuario->nome : "Olá";
 
+        // IMPORTANTE: Verifica se o utilizador já está noutra conversa
         if ($usuario->conversa_estado) {
             writeToLog("A ignorar utilizador #{$usuario->id} (compra #{$compra->id}) porque já está num estado de conversa: {$usuario->conversa_estado}");
-            continue; 
+            continue; // Ignora este para não interromper o fluxo atual (ex: Google Maps)
         }
 
         // 7. Envia a mensagem proativa (com try/catch)

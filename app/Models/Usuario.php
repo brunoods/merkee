@@ -1,19 +1,23 @@
 <?php
 // ---
 // /app/Models/Usuario.php
-// (VERSÃO COM 'nome_confirmado' E 'data_expiracao')
+// (VERSÃO COM NAMESPACE E findAll CORRIGIDO)
 // ---
+
+// 1. Define o Namespace
+namespace App\Models;
+
+// 2. Importa dependências
+use PDO;
+use stdClass; // (para o método findAll)
+use DateTime; // (para o findOrCreate)
 
 class Usuario {
     
     public int $id;
     public string $whatsapp_id;
     public ?string $nome;
-
-    // --- (INÍCIO DA ATUALIZAÇÃO) ---
-    public bool $nome_confirmado; // 1. Adiciona a nova propriedade
-    // --- (FIM DA ATUALIZAÇÃO) ---
-
+    public bool $nome_confirmado;
     public string $criado_em;
     public ?string $conversa_estado;
     public ?array $conversa_contexto;
@@ -23,7 +27,7 @@ class Usuario {
     public bool $is_ativo;
     public ?string $data_expiracao;
 
-    private function __construct(int $id, string $whatsapp_id, ?string $nome, bool $nome_confirmado, // 2. Adiciona ao construtor
+    private function __construct(int $id, string $whatsapp_id, ?string $nome, bool $nome_confirmado, 
                                  string $criado_em, ?string $estado, ?string $contexto, ?string $estado_iniciado, 
                                  bool $receber_alertas, bool $receber_dicas,
                                  bool $is_ativo, ?string $data_expiracao)
@@ -31,11 +35,7 @@ class Usuario {
         $this->id = $id;
         $this->whatsapp_id = $whatsapp_id;
         $this->nome = $nome;
-        
-        // --- (INÍCIO DA ATUALIZAÇÃO) ---
-        $this->nome_confirmado = $nome_confirmado; // 3. Atribui a propriedade
-        // --- (FIM DA ATUALIZAÇÃO) ---
-
+        $this->nome_confirmado = $nome_confirmado;
         $this->criado_em = $criado_em;
         $this->conversa_estado = $estado;
         $this->conversa_contexto = $contexto ? json_decode($contexto, true) : [];
@@ -55,9 +55,7 @@ class Usuario {
             (int)$userData['id'],
             (string)$userData['whatsapp_id'],
             $userData['nome'],
-            // --- (INÍCIO DA ATUALIZAÇÃO) ---
-            (bool)$userData['nome_confirmado'], // 4. Lê a nova coluna
-            // --- (FIM DA ATUALIZAÇÃO) ---
+            (bool)$userData['nome_confirmado'], 
             (string)$userData['criado_em'],
             $userData['conversa_estado'],
             $userData['conversa_contexto'],
@@ -71,20 +69,26 @@ class Usuario {
 
     /**
      * Encontra todos os usuários (para o CRON).
+     * (MODIFICADO: Agora inclui is_ativo para evitar spam a usuários inativos)
      */
     public static function findAll(PDO $pdo): array
     {
-        $stmt = $pdo->query("SELECT id, whatsapp_id, nome, receber_alertas, receber_dicas FROM usuarios");
-        $usersData = $stmt->fetchAll();
+        // Seleciona todos os campos que os CRONs precisam
+        $stmt = $pdo->query(
+            "SELECT id, whatsapp_id, nome, receber_alertas, receber_dicas, is_ativo 
+             FROM usuarios"
+        );
+        $usersData = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         $usuarios = [];
         foreach ($usersData as $userData) {
-            $user = new stdClass();
+            $user = new stdClass(); // (Leve, para os CRONs)
             $user->id = (int)$userData['id'];
             $user->whatsapp_id = $userData['whatsapp_id'];
             $user->nome = $userData['nome'];
             $user->receber_alertas = (bool)$userData['receber_alertas'];
             $user->receber_dicas = (bool)$userData['receber_dicas'];
+            $user->is_ativo = (bool)$userData['is_ativo']; // (IMPORTANTE)
             $usuarios[] = $user;
         }
         return $usuarios;
@@ -113,27 +117,27 @@ class Usuario {
         if ($userData) {
             return self::fromData($userData);
         } else {
-            // (O INSERT agora usa o nome 'Visitante' temporariamente)
+            // (Substituído 'NOW()' por (new DateTime())->format() para consistência)
+            $dataCriacao = (new DateTime())->format('Y-m-d H:i:s');
+            
             $stmt = $pdo->prepare(
-                "INSERT INTO usuarios (whatsapp_id, nome, nome_confirmado) VALUES (?, ?, 0)"
+                "INSERT INTO usuarios (whatsapp_id, nome, nome_confirmado, criado_em) VALUES (?, ?, 0, ?)"
             );
-            $stmt->execute([$whatsapp_id, $nome]); // $nome aqui é 'Visitante' vindo do webhook
+            $stmt->execute([$whatsapp_id, $nome, $dataCriacao]); 
             $newId = (int)$pdo->lastInsertId();
             
-            // --- (INÍCIO DA ATUALIZAÇÃO) ---
-            // 5. Quando um novo usuário é criado, ele nasce 'inativo' e com 'nome_confirmado = false'
+            // Retorna um objeto "falso" mas funcional para o resto do script
+            // (Nasce inativo por padrão, admin deve ativar)
             return new Usuario(
-                $newId, $whatsapp_id, $nome, false, // <-- nome_confirmado = false
-                date('Y-m-d H:i:s'),
+                $newId, $whatsapp_id, $nome, false, 
+                $dataCriacao,
                 null, null, null, true, true,
-                false, // is_ativo = false
-                null   // data_expiracao = null
+                false, 
+                null
             );
-            // --- (FIM DA ATUALIZAÇÃO) ---
         }
     }
 
-    // --- (INÍCIO DA ATUALIZAÇÃO) ---
     /**
      * (NOVO!) Atualiza o nome e marca como confirmado.
      */
@@ -146,7 +150,6 @@ class Usuario {
         $this->nome = $nome;
         $this->nome_confirmado = true;
     }
-    // --- (FIM DA ATUALIZAÇÃO) ---
     
     /**
      * Atualiza o estado da conversa do usuário.
@@ -190,7 +193,7 @@ class Usuario {
      */
     public function updateConfig(PDO $pdo, string $coluna, bool $valor): void
     {
-        // Validação de segurança para garantir que a coluna é a correta
+        // Garante que só estas colunas podem ser alteradas
         if ($coluna !== 'receber_alertas' && $coluna !== 'receber_dicas') {
             return;
         }
@@ -200,7 +203,7 @@ class Usuario {
         );
         $stmt->execute([$valor, $this->id]);
         
-        // Atualiza o objeto
+        // Atualiza o objeto local
         $this->{$coluna} = $valor;
     }
 }

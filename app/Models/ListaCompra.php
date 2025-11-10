@@ -3,9 +3,11 @@
 // /app/Models/ListaCompra.php
 // (NOVO FICHEIRO)
 // ---
+namespace App\Models;
 
-// Precisamos do normalizador para salvar os nomes dos produtos
-require_once __DIR__ . '/../Utils/StringUtils.php';
+// 2. (A CORREÇÃO)
+use PDO;
+use App\Utils\StringUtils;
 
 /**
  * Representa uma única lista de compras (ex: "Compras do Mês")

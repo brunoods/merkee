@@ -87,6 +87,7 @@ try {
         $motivo_bloqueio = "está revogado ou pendente de ativação";
     }
     
+    // (Permite que o fluxo de onboarding 'aguardando_nome_para_onboarding' passe, mesmo se inativo)
     $is_valido = ($usuario->conversa_estado === 'aguardando_nome_para_onboarding') ? true : $is_valido;
 
     if ($is_valido == false) {

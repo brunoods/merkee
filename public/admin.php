@@ -1,20 +1,27 @@
 <?php
 // ---
 // /public/admin.php
-// (VERSÃO 4.0 - GESTÃO DE SUBSRIÇÕES)
+// (VERSÃO 4.0 - GESTÃO DE SUBSRIÇÕES E BOOTSTRAP)
 // ---
 
-// --- 1. CONFIGURAÇÃO DE SEGURANÇA (MUDE ISTO!) ---
-define('ADMIN_PASSWORD', 'merkee#admin@2025');
-// --------------------------------------------------
+// 1. Incluir Arquivo ÚNICO de Bootstrap
+// (Carrega .env, autoloader e getDbConnection)
+require_once __DIR__ . '/../config/bootstrap.php';
 
 session_start();
-require_once __DIR__ . '/../config/db.php';
 
-// --- Funções de Login/Logout (sem mudança) ---
+// --- Funções de Login/Logout (Modificadas para HASH) ---
 function login() {
     if (!empty($_POST['senha'])) {
-        if ($_POST['senha'] === ADMIN_PASSWORD) {
+        
+        // Lê o HASH correto do .env
+        $hashCorreto = getenv('ADMIN_PASSWORD_HASH');
+        if (empty($hashCorreto)) {
+            return "Erro de configuração: ADMIN_PASSWORD_HASH não definido no .env";
+        }
+
+        // Verifica a senha enviada contra o hash
+        if (password_verify($_POST['senha'], $hashCorreto)) {
             $_SESSION['admin_logado'] = true;
             header("Location: admin.php");
             exit;
@@ -40,7 +47,7 @@ $acao = $_GET['acao'] ?? 'dashboard';
 
 if (isset($_SESSION['admin_logado']) && $_SESSION['admin_logado'] === true) {
     
-    $pdo = getDbConnection();
+    $pdo = getDbConnection(); // (Vem do bootstrap.php)
 
     // --- LÓGICA DE AÇÕES (POST - SALVAR) ---
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao_form']) && $_POST['acao_form'] === 'salvar_usuario') {
@@ -192,17 +199,15 @@ if (isset($_SESSION['admin_logado']) && $_SESSION['admin_logado'] === true) {
         th { background-color: #f9f9f9; }
         td { word-break: break-word; }
         .acao-link { display: inline-block; padding: 5px 10px; text-decoration: none; border-radius: 4px; color: #fff; font-weight: bold; margin: 2px; font-size: 12px; cursor: pointer; }
-        /* (Removidos Ativar/Desativar) */
         .editar { background-color: #007bff; }
         .detalhes { background-color: #6c757d; }
-        /* (Novos botões de tempo) */
         .add-tempo { background-color: #f0ad4e; }
         .revogar { background-color: #d9534f; }
         .status-ativo { color: #5cb85c; font-weight: bold; }
         .status-expirado { color: #d9534f; font-weight: bold; }
         .status-inativo { color: #777; }
 
-        /* (Resto do CSS: Formulário, Modal, Login - sem mudança) */
+        /* Formulário, Modal, Login */
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
         .form-group input, .form-group textarea { width: 95%; max-width: 500px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
@@ -218,171 +223,12 @@ if (isset($_SESSION['admin_logado']) && $_SESSION['admin_logado'] === true) {
     </style>
 </head>
 <body>
+    
     <div class="container">
-
-    <?php if (isset($_SESSION['admin_logado']) && $_SESSION['admin_logado'] === true): ?>
-        
-        <a href="?acao=logout" class="logout">Sair</a>
-        <h1>Painel de Gestão Merkee</h1>
-
-        <?php if ($feedback): ?>
-            <div class="feedback"><?php echo htmlspecialchars($feedback); ?></div>
-        <?php endif; ?>
-
-        <?php 
-        // --- VISTA DE DETALHES DO UTILIZADOR ---
-        if ($acao === 'detalhes' && $usuario_para_detalhes): ?>
-            
-            <a href="admin.php" class="btn btn-secondary" style="margin-bottom: 15px;">&larr; Voltar ao Dashboard</a>
-            
-            <h2>Dashboard do Utilizador: <?php echo htmlspecialchars($usuario_para_detalhes['nome']); ?></h2>
-            <p><strong>ID:</strong> <?php echo $usuario_para_detalhes['id']; ?> | <strong>WhatsApp:</strong> <?php echo $usuario_para_detalhes['whatsapp_id']; ?></p>
-            
-            <div class="dashboard">
-                <div class="dash-card user-card">
-                    <h3>Compras Finalizadas</h3>
-                    <p><?php echo $user_dashboard_stats['total_compras']; ?></p>
-                </div>
-                <div class="dash-card user-card">
-                    <h3>Total Gasto (R$)</h3>
-                    <p><?php echo number_format($user_dashboard_stats['total_gasto'], 2, ',', '.'); ?></p>
-                </div>
-                <div class="dash-card user-card">
-                    <h3>Total Poupança (R$)</h3>
-                    <p class="poupanca"><?php echo number_format($user_dashboard_stats['total_poupanca'], 2, ',', '.'); ?></p>
-                </div>
-            </div>
-            
-            <h3>Observações:</h3>
-            <div style="background: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px; min-height: 50px;">
-                <?php echo nl2br(htmlspecialchars($usuario_para_detalhes['observacoes'])); ?>
-            </div>
-
-
-        <?php 
-        // --- VISTA PADRÃO (DASHBOARD GLOBAL + LISTA) ---
-        elseif ($acao === 'dashboard'): ?>
-
-            <h2>Dashboard Global</h2>
-            <div class="dashboard">
-                <div class="dash-card"><h3>Utilizadores Ativos</h3><p><?php echo $dashboard_stats['active_users']; ?> / <?php echo $dashboard_stats['total_users']; ?></p></div>
-                <div class="dash-card"><h3>Utilizadores Inativos</h3><p class="inativos"><?php echo $dashboard_stats['inactive_users']; ?></p></div>
-                <div class="dash-card"><h3>Compras Finalizadas</h3><p><?php echo $dashboard_stats['total_compras']; ?></p></div>
-                <div class="dash-card"><h3>Total Gasto (R$)</h3><p><?php echo number_format($dashboard_stats['total_gasto'], 2, ',', '.'); ?></p></div>
-                <div class="dash-card"><h3>Total Poupança (R$)</h3><p class="poupanca"><?php echo number_format($dashboard_stats['total_poupanca'], 2, ',', '.'); ?></p></div>
-            </div>
-
-            <h2>Utilizadores</h2>
-            
-            <div class="search-box">
-                <label for="searchInput">Pesquisar Utilizador:</label>
-                <input type="text" id="searchInput" onkeyup="filtrarTabela()" placeholder="Digite nome ou WhatsApp ID...">
-            </div>
-
-            <div style="overflow-x:auto;">
-                <table id="userTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Nome</th>
-                            <th>WhatsApp ID</th>
-                            <th>Status da Subscrição</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($usuarios as $user): ?>
-                        <tr>
-                            <td><?php echo $user['id']; ?></td>
-                            <td><?php echo htmlspecialchars($user['nome']); ?></td>
-                            <td><?php echo htmlspecialchars($user['whatsapp_id']); ?></td>
-                            
-                            <td>
-                                <?php
-                                $hoje = new DateTime();
-                                $data_exp = $user['data_expiracao'] ? new DateTime($user['data_expiracao']) : null;
-                                
-                                if ($user['is_ativo'] && $data_exp && $data_exp >= $hoje) {
-                                    echo '<span class="status-ativo">🟢 Ativo</span>';
-                                    echo '<br><small>Expira em: ' . $data_exp->format('d/m/Y') . '</small>';
-                                } elseif ($user['is_ativo'] && $data_exp && $data_exp < $hoje) {
-                                    echo '<span class="status-expirado">🔴 Expirado</span>';
-                                    echo '<br><small>Expirou em: ' . $data_exp->format('d/m/Y') . '</small>';
-                                } else {
-                                    echo '<span class="status-inativo">⚪ Inativo/Revogado</span>';
-                                }
-                                ?>
-                            </td>
-                            
-                            <td>
-                                <a href="?acao=detalhes&id=<?php echo $user['id']; ?>" class="acao-link detalhes">Detalhes</a>
-                                
-                                <a class="acao-link editar btn-edit"
-                                   data-id="<?php echo $user['id']; ?>"
-                                   data-nome="<?php echo htmlspecialchars($user['nome']); ?>"
-                                   data-whatsapp="<?php echo htmlspecialchars($user['whatsapp_id']); ?>"
-                                   data-observacoes="<?php echo htmlspecialchars($user['observacoes']); ?>"
-                                >Editar</a>
-                                
-                                <a href="?add_tempo=<?php echo $user['id']; ?>&dias=30" class="acao-link add-tempo">+30d</a>
-                                <a href="?add_tempo=<?php echo $user['id']; ?>&dias=90" class="acao-link add-tempo">+90d</a>
-                                <a href="?add_tempo=<?php echo $user['id']; ?>&dias=365" class="acao-link add-tempo">+1 Ano</a>
-                                <a href="?revogar=<?php echo $user['id']; ?>" class="acao-link revogar" onclick="return confirm('Tem a certeza que quer revogar esta subscrição?');">Revogar</a>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-
-        <?php endif; ?>
-
-
-    <?php else: ?>
-
-        <div class="login-form">
-            <h1>Acesso Restrito</h1>
-            <p>Por favor, insira a senha de administrador.</p>
-            <?php if ($feedback): ?>
-                <p style="color: red;"><?php echo htmlspecialchars($feedback); ?></p>
-            <?php endif; ?>
-            <form method="POST" action="admin.php">
-                <input type="password" name="senha" placeholder="Senha" required>
-                <button type="submit">Entrar</button>
-            </form>
         </div>
 
-    <?php endif; ?>
-
-    </div> <div id="editModal" class="modal">
-        <div class="modal-content">
-            <span class="modal-close">&times;</span>
-            <h2>Editar Utilizador</h2>
-            
-            <form method="POST" action="admin.php" class="form-edit">
-                <input type="hidden" name="acao_form" value="salvar_usuario"> 
-                <input type="hidden" name="id_usuario_modal" id="form-id">
-                
-                <div class="form-group">
-                    <label for="form-nome">Nome:</label>
-                    <input type="text" id="form-nome" name="nome_modal">
-                </div>
-                
-                <div class="form-group">
-                    <label for="form-whatsapp">WhatsApp ID (Número):</label>
-                    <input type="text" id="form-whatsapp" name="whatsapp_id_modal">
-                </div>
-
-                <div class="form-group">
-                    <label for="form-observacoes">Observações (Controlo de Pagamento, etc.):</label>
-                    <textarea id="form-observacoes" name="observacoes_modal"></textarea>
-                </div>
-                
-                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-            </form>
+    <div id="editModal" class="modal">
         </div>
-    </div>
-
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {

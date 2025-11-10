@@ -1,23 +1,23 @@
 <?php
 // ---
 // /tasks/verificar_alertas_preco.php
-// (VERSÃO 2.1 - AGORA OBEDECE ÀS CONFIGURAÇÕES)
+// (VERSÃO COM BOOTSTRAP, NAMESPACE E FIX IS_ATIVO)
 // ---
 
-require_once __DIR__ . '/../config/db.php';
-require_once __DIR__ . '/../config/api_keys.php';
-require_once __DIR__ . '/../app/Models/Usuario.php';
-require_once __DIR__ . '/../app/Models/Compra.php';
-require_once __DIR__ . '/../app/Models/Estabelecimento.php';
-require_once __DIR__ . '/../app/Models/HistoricoPreco.php';
-require_once __DIR__ . '/../app/Services/WhatsAppService.php';
-require_once __DIR__ . '/../app/Utils/StringUtils.php'; 
+// 1. Includes
+require_once __DIR__ . '/../config/bootstrap.php';
 
+// 2. Usar os "Namespaces"
+use App\Models\Usuario;
+use App\Models\Compra;
+use App\Models\HistoricoPreco;
+use App\Services\WhatsAppService;
+
+// 3. Logging
 $logFilePath = __DIR__ . '/../storage/cron_alertas_log.txt'; 
 function writeToLog($message) {
     global $logFilePath;
-    $logEntry = "[" . date('Y-m-d H:i:s') . "] (CRON_ALERTAS) " . $message . PHP_EOL;
-    file_put_contents($logFilePath, $logEntry, FILE_APPEND);
+    writeToLog($logFilePath, $message, "CRON_ALERTAS"); // Chama a global
 }
 
 writeToLog("--- CRON ALERTA INICIADO ---");
@@ -29,7 +29,7 @@ try {
     $pdo = getDbConnection();
     $waService = new WhatsAppService();
 
-    $usuarios = Usuario::findAll($pdo);
+    $usuarios = Usuario::findAll($pdo); // (Agora contém 'is_ativo')
     if (empty($usuarios)) {
         writeToLog("Nenhum usuário encontrado.");
         exit;
@@ -38,13 +38,17 @@ try {
 
     foreach ($usuarios as $usuario) {
         
-        // --- (INÍCIO DA CORREÇÃO) ---
-        // 1. Verifica se este usuário QUER receber este alerta
+        // (NOVA VERIFICAÇÃO) Não envia para utilizadores inativos
+        if ($usuario->is_ativo === false) {
+            writeToLog("A saltar Usuário #{$usuario->id}: Inativo.");
+            continue;
+        }
+        
+        // (VERIFICAÇÃO ANTIGA)
         if ($usuario->receber_alertas === false) {
             writeToLog("A saltar Usuário #{$usuario->id}: Alertas desativados.");
             continue; // Salta para o próximo usuário
         }
-        // --- (FIM DA CORREÇÃO) ---
 
         $ultimoLocal = Compra::findLastCompletedByUser($pdo, $usuario->id);
         if (!$ultimoLocal || empty($ultimoLocal['cidade'])) {
@@ -103,15 +107,23 @@ try {
                 $precoPagoFmt = number_format($ultimoPrecoPago, 2, ',', '.');
                 $precoMinimoFmt = number_format($precoMinimoAtual, 2, ',', '.');
                 $mensagem = "Ei, {$nomeUsuario}! 👋\n\nBoas notícias! 💰\n\nNotei que o produto *{$nomeProduto}* (que pagaste R$ {$precoPagoFmt} da última vez) está agora por **R$ {$precoMinimoFmt}** no *{$mercadoMaisBaratoNome}*.\n\nÉ uma boa altura para comprar! 📉";
-                $waService->sendMessage($usuario->whatsapp_id, $mensagem);
+                
+                try {
+                    $waService->sendMessage($usuario->whatsapp_id, $mensagem); // (try/catch)
 
-                $sqlInsert = "
-                    INSERT INTO alertas_enviados 
-                        (usuario_id, produto_nome_normalizado, estabelecimento_id, preco)
-                    VALUES (?, ?, ?, ?)
-                ";
-                $insertStmt = $pdo->prepare($sqlInsert);
-                $insertStmt->execute([ $usuario->id, $nomeNormalizado, $estabelecimentoId, $precoMinimoAtual ]);
+                    $sqlInsert = "
+                        INSERT INTO alertas_enviados 
+                            (usuario_id, produto_nome_normalizado, estabelecimento_id, preco)
+                        VALUES (?, ?, ?, ?)
+                    ";
+                    $insertStmt = $pdo->prepare($sqlInsert);
+                    $insertStmt->execute([ $usuario->id, $nomeNormalizado, $estabelecimentoId, $precoMinimoAtual ]);
+                
+                } catch (Exception $e) {
+                     writeToLog(
+                        "!!! FALHA AO ENVIAR ALERTA para utilizador #{$usuario->id}: " . $e->getMessage()
+                    );
+                }
             }
         }
     }

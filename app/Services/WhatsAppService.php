@@ -21,6 +21,7 @@ class WhatsAppService {
         $this->clientToken = getenv('WHATSAPP_CLIENT_TOKEN');
 
         if (empty($this->apiUrl) || empty($this->clientToken)) {
+            // Se as chaves não estiverem no .env, lança um erro que para o script
             throw new Exception("WHATSAPP_API_URL ou WHATSAPP_CLIENT_TOKEN não definidos no .env");
         }
     }

@@ -1,10 +1,14 @@
 <?php
 // ---
 // /app/Services/GooglePlacesService.php
-// Responsável por comunicar com a Google Places API
+// (VERSÃO COM NAMESPACE e getenv())
 // ---
 
-require_once __DIR__ . '/../../config/api_keys.php'; 
+// 1. Define o Namespace
+namespace App\Services;
+
+// 2. Importa classes globais
+use Exception;
 
 class GooglePlacesService {
     
@@ -12,10 +16,11 @@ class GooglePlacesService {
     private string $apiUrl = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json';
 
     public function __construct() {
-        if (!defined('GOOGLE_PLACES_API_KEY')) {
-            throw new Exception("GOOGLE_PLACES_API_KEY não definida em config/api_keys.php");
+        // 3. Lê do .env
+        $this->apiKey = getenv('GOOGLE_PLACES_API_KEY');
+        if (empty($this->apiKey)) {
+            throw new Exception("GOOGLE_PLACES_API_KEY não definida no .env");
         }
-        $this->apiKey = GOOGLE_PLACES_API_KEY;
     }
 
     /**
@@ -50,8 +55,7 @@ class GooglePlacesService {
         curl_close($ch);
 
         if ($httpCode != 200) {
-            // Se falhar, apenas não retorna nada. O log principal (webhook.php)
-            // pode apanhar o erro se quisermos depurar.
+            // Falha silenciosa, apenas não retorna nada.
             return []; 
         }
 
@@ -73,3 +77,4 @@ class GooglePlacesService {
         return $locaisFormatados;
     }
 }
+?>

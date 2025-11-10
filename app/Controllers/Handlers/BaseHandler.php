@@ -1,11 +1,15 @@
 <?php
 // ---
 // /app/Controllers/Handlers/BaseHandler.php
-// (NOVO FICHEIRO)
+// (VERSÃO COM NAMESPACE)
 // ---
 
-// Inclui os Modelos que TODOS os handlers provavelmente usarão
-require_once __DIR__ . '/../../Models/Usuario.php';
+// 1. Define o Namespace
+namespace App\Controllers\Handlers;
+
+// 2. Importa dependências
+use PDO;
+use App\Models\Usuario; // Importa a classe Usuario
 
 /**
  * Classe Abstrata Base
@@ -27,8 +31,8 @@ abstract class BaseHandler {
      * um método 'process' para lidar com a mensagem.
      *
      * @param string $estado O estado atual (ex: 'aguardando_nome_lista')
-     * @param string $respostaUsuario A mensagem do usuário
-     * @param array $contexto O contexto salvo no banco
+     * @param string $respostaUsuario O texto exato que o usuário enviou
+     * @param array $contexto Dados guardados (ex: 'lista_id')
      * @return string A resposta do bot
      */
     public abstract function process(string $estado, string $respostaUsuario, array $contexto): string;

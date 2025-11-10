@@ -4,6 +4,13 @@
 // AGORA COM SUPORTE A GOOGLE PLACE ID
 // ---
 
+// 1. (A CORREÇÃO)
+namespace App\Models;
+
+// 2. (A CORREÇÃO)
+use PDO;
+
+
 class Estabelecimento {
 
     public int $id;
