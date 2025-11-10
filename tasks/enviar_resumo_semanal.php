@@ -1,49 +1,48 @@
 <?php
 // ---
 // /tasks/enviar_resumo_semanal.php
-// (VERSÃO COM BOOTSTRAP, NAMESPACE E FIX IS_ATIVO)
+// (VERSÃO CORRIGIDA COM NAMESPACE E LOG RENOMEADO)
 // ---
 
-// 1. (A CORREÇÃO) Incluir Arquivo ÚNICO de Bootstrap
+// 1. Incluir Arquivo ÚNICO de Bootstrap
 require_once __DIR__ . '/../config/bootstrap.php';
 
-// 2. (A CORREÇÃO) Usar os "Namespaces"
+// 2. Usar os "Namespaces"
 use App\Models\Usuario;
 use App\Services\WhatsAppService;
 
-// 3. (A CORREÇÃO) Logging
+// 3. (CORREÇÃO 1) Logging renomeado
 $logFilePath = __DIR__ . '/../storage/cron_resumo_log.txt'; 
-function writeToLog($message) {
+function localWriteToLog($message) { // <-- RENOMEADO
     global $logFilePath;
     writeToLog($logFilePath, $message, "CRON_RESUMO"); // Chama a global
 }
 
-writeToLog("--- CRON RESUMO SEMANAL INICIADO ---");
+localWriteToLog("--- CRON RESUMO SEMANAL INICIADO ---"); // <-- CORRIGIDO
 
 try {
-    $pdo = getDbConnection();
-    $waService = new WhatsAppService();
+    $pdo = getDbConnection(); // (Já usa $_ENV)
+    $waService = new WhatsAppService(); // (Já usa $_ENV)
 
-    // (Usa a classe Usuario importada)
-    $usuarios = Usuario::findAll($pdo); // (Agora contém 'is_ativo')
+    $usuarios = Usuario::findAll($pdo);
     if (empty($usuarios)) {
-        writeToLog("Nenhum usuário encontrado.");
+        localWriteToLog("Nenhum usuário encontrado."); // <-- CORRIGIDO
         exit;
     }
 
-    writeToLog("A verificar resumos para " . count($usuarios) . " usuários...");
+    localWriteToLog("A verificar resumos para " . count($usuarios) . " usuários..."); // <-- CORRIGIDO
 
     foreach ($usuarios as $usuario) {
         
-        // 4. (A CORREÇÃO) Não enviar para usuários inativos
+        // 4. (CORREÇÃO 2) Não enviar para utilizadores inativos
         if ($usuario->is_ativo === false) {
-            writeToLog("A saltar Usuário #{$usuario->id}: Inativo.");
+            localWriteToLog("A saltar Usuário #{$usuario->id}: Inativo."); // <-- CORRIGIDO
             continue;
         }
 
-        // (VERIFICAÇÃO ANTIGA - manter)
-        if ($usuario->receber_alertas === false) { // (Usa a config de 'alertas')
-            writeToLog("A saltar Usuário #{$usuario->id}: Alertas (e resumos) desativados.");
+        // 5. Verifica se o utilizador quer receber alertas/resumos
+        if ($usuario->receber_alertas === false) { 
+            localWriteToLog("A saltar Usuário #{$usuario->id}: Alertas (e resumos) desativados."); // <-- CORRIGIDO
             continue; 
         }
         
@@ -74,21 +73,21 @@ try {
             
             try {
                 $waService->sendMessage($usuario->whatsapp_id, $mensagem); 
-                writeToLog("... Mensagem de resumo enviada para Usuário #{$usuario->id} (Poupou R$ {$poupadoFmt})");
+                localWriteToLog("... Mensagem de resumo enviada para Usuário #{$usuario->id} (Poupou R$ {$poupadoFmt})"); // <-- CORRIGIDO
             } catch (Exception $e) {
-                 writeToLog(
+                 localWriteToLog( // <-- CORRIGIDO
                     "!!! FALHA AO ENVIAR RESUMO para utilizador #{$usuario->id}: " . $e->getMessage()
                 );
             }
 
         } else {
-            writeToLog("... Usuário #{$usuario->id} sem poupanças registadas esta semana. A saltar.");
+            localWriteToLog("... Usuário #{$usuario->id} sem poupanças registadas esta semana. A saltar."); // <-- CORRIGIDO
         }
     }
 
 } catch (Exception $e) {
-    writeToLog("!!! ERRO CRÍTICO NO CRON RESUMO !!!: " . $e->getMessage());
+    localWriteToLog("!!! ERRO CRÍTICO NO CRON RESUMO !!!: " . $e->getMessage()); // <-- CORRIGIDO
 }
 
-writeToLog("--- CRON RESUMO FINALIZADO ---");
+localWriteToLog("--- CRON RESUMO FINALIZADO ---"); // <-- CORRIGIDO
 ?>

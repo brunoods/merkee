@@ -1,24 +1,24 @@
 <?php
 // ---
 // /tasks/enviar_dica_aleatoria.php
-// (VERSÃO COM BOOTSTRAP, NAMESPACE E FIX IS_ATIVO)
+// (VERSÃO CORRIGIDA COM NAMESPACE E LOG RENOMEADO)
 // ---
 
-// 1. Includes
+// 1. Incluir Arquivo ÚNICO de Bootstrap
 require_once __DIR__ . '/../config/bootstrap.php';
 
 // 2. Usar os "Namespaces"
 use App\Models\Usuario;
 use App\Services\WhatsAppService;
 
-// 3. Logging
+// 3. (CORREÇÃO 1) Logging renomeado
 $logFilePath = __DIR__ . '/../storage/cron_dicas_log.txt'; 
-function writeToLog($message) {
+function localWriteToLog($message) { // <-- RENOMEADO
     global $logFilePath;
     writeToLog($logFilePath, $message, "CRON_DICAS"); // Chama a global
 }
 
-writeToLog("--- CRON DICAS INICIADO ---");
+localWriteToLog("--- CRON DICAS INICIADO ---"); // <-- CORRIGIDO
 
 // 4. Lista de Dicas
 $dicas = [
@@ -31,45 +31,45 @@ $dicas = [
 ];
 
 try {
-    $pdo = getDbConnection();
-    $waService = new WhatsAppService();
+    $pdo = getDbConnection(); // (Já usa $_ENV)
+    $waService = new WhatsAppService(); // (Já usa $_ENV)
 
     $dicaDoDia = $dicas[array_rand($dicas)];
-    writeToLog("Dica do dia escolhida: " . $dicaDoDia);
+    localWriteToLog("Dica do dia escolhida: " . $dicaDoDia); // <-- CORRIGIDO
 
-    $usuarios = Usuario::findAll($pdo); // (Agora contém 'is_ativo')
+    $usuarios = Usuario::findAll($pdo); 
     if (empty($usuarios)) {
-        writeToLog("Nenhum usuário encontrado.");
+        localWriteToLog("Nenhum usuário encontrado."); // <-- CORRIGIDO
         exit;
     }
-    writeToLog("A enviar dica para " . count($usuarios) . " usuários...");
+    localWriteToLog("A enviar dica para " . count($usuarios) . " usuários..."); // <-- CORRIGIDO
 
     foreach ($usuarios as $usuario) {
         
-        // (NOVA VERIFICAÇÃO) Não envia para utilizadores inativos
+        // 5. (CORREÇÃO 2) Não enviar para utilizadores inativos
         if ($usuario->is_ativo === false) {
-            writeToLog("... A saltar Usuário #{$usuario->id}: Inativo.");
+            localWriteToLog("... A saltar Usuário #{$usuario->id}: Inativo."); // <-- CORRIGIDO
             continue;
         }
 
-        // (VERIFICAÇÃO ANTIGA)
+        // 6. Verifica se o utilizador quer receber dicas
         if ($usuario->receber_dicas === false) {
-            writeToLog("... A saltar Usuário #{$usuario->id}: Dicas desativadas.");
+            localWriteToLog("... A saltar Usuário #{$usuario->id}: Dicas desativadas."); // <-- CORRIGIDO
             continue;
         }
         
         try {
             $waService->sendMessage($usuario->whatsapp_id, $dicaDoDia); 
         } catch (Exception $e) {
-            writeToLog(
+            localWriteToLog( // <-- CORRIGIDO
                 "!!! FALHA AO ENVIAR DICA para utilizador #{$usuario->id}: " . $e->getMessage()
             );
         }
     }
 
 } catch (Exception $e) {
-    writeToLog("!!! ERRO CRÍTICO NO CRON DICAS !!!: " . $e->getMessage());
+    localWriteToLog("!!! ERRO CRÍTICO NO CRON DICAS !!!: " . $e->getMessage()); // <-- CORRIGIDO
 }
 
-writeToLog("--- CRON DICAS FINALIZADO ---");
+localWriteToLog("--- CRON DICAS FINALIZADO ---"); // <-- CORRIGIDO
 ?>
