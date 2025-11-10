@@ -1,16 +1,14 @@
 <?php
 // ---
 // /app/Models/HistoricoPreco.php
+// (VERSÃO CORRIGIDA - Erro 'false returned')
 // ---
 
-// 1. (A CORREÇÃO)
 namespace App\Models;
 
-// 2. (A CORREÇÃO)
 use PDO;
-use DateTime; // (Esta classe usa DateTime)
+use DateTime; 
 
-// 3. (A CORREÇÃO)
 class HistoricoPreco {
 
     /**
@@ -31,11 +29,16 @@ class HistoricoPreco {
         ";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$usuario_id, $produtoNomeNormalizado, $compraAtualId]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // --- (A CORREÇÃO ESTÁ AQUI) ---
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        // Se fetch() retornar false (nada encontrado), nós retornamos null
+        return $result === false ? null : $result;
+        // --- (FIM DA CORREÇÃO) ---
     }
     
     /**
-     * Busca o histórico de preços para o gráfico (não implementado no bot, mas útil para o futuro)
+     * Busca o histórico de preços para o gráfico
      */
     public static function getPriceTrend(PDO $pdo, int $usuario_id, string $produtoNomeNormalizado, int $compraAtualId): array
     {
@@ -56,11 +59,9 @@ class HistoricoPreco {
     /**
      * (Usado pelo comando 'pesquisar')
      * Encontra o preço mais baixo registado para um produto numa cidade
-     * nos últimos X dias.
      */
     public static function findBestPricesInCity(PDO $pdo, string $produtoNomeNormalizado, string $cidade, int $dias = 30): array
     {
-        // (Usa a classe DateTime importada)
         $dataLimite = (new DateTime("-{$dias} days"))->format('Y-m-d');
         
         $sql = "
@@ -68,7 +69,8 @@ class HistoricoPreco {
                 hp.estabelecimento_id,
                 e.nome as estabelecimento_nome,
                 MIN(hp.preco_unitario) as preco_minimo,
-                MAX(hp.data_compra) as data_mais_recente
+                MAX(hp.data_compra) as data_mais_recente,
+                (SELECT c.id FROM compras c WHERE c.estabelecimento_id = hp.estabelecimento_id ORDER BY c.data_fim DESC LIMIT 1) as ultimo_local_id
             FROM historico_precos hp
             JOIN estabelecimentos e ON hp.estabelecimento_id = e.id
             WHERE hp.produto_nome_normalizado = ?
@@ -96,10 +98,8 @@ class HistoricoPreco {
 
         $dataLimite = (new DateTime("-{$dias} days"))->format('Y-m-d');
         
-        // Cria os placeholders (?) para a cláusula IN
         $placeholders = implode(',', array_fill(0, count($produtosNormalizados), '?'));
         
-        // (Query complexa que busca o menor preço para cada produto)
         $sql = "
             WITH RankedPrices AS (
                 SELECT 

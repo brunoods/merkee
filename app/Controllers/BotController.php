@@ -244,10 +244,9 @@ class BotController {
         return CompraReportService::gerarResumoFinalizacao($this->pdo, $compra);
     }
 
-
-    /**
+/**
      * Lógica de registar um item (enquanto a compra está ativa)
-     * (Função idêntica à tua)
+     * (VERSÃO CORRIGIDA - LÓGICA DE PREÇO)
      */
     private function processStateWithPurchase(string $comando): string {
         
@@ -256,36 +255,55 @@ class BotController {
         }
 
         $parser = new ItemParserService();
-        $item = $parser->parse($comando);
+        $item = $parser->parse($comando); // (O Parser agora retorna preço unitário)
 
         if ($item->isSuccess() === false) {
             return $item->errorMessage ?? "Não entendi o formato, desculpe. 😕";
         }
         
+        // --- (INÍCIO DA CORREÇÃO) ---
+        // O Parser deu-nos o preço UNITÁRIO.
+        $precoUnitarioPago = $item->precoPagoFloat;
+        $precoUnitarioNormal = $item->precoNormalFloat;
+        
+        // Passamos o preço UNITÁRIO para a base de dados
         $this->compraAtiva->addItem(
             $this->pdo, 
             $item->nomeProduto, 
             $item->quantidadeDesc, 
             $item->quantidadeInt, 
-            $item->precoPagoFloat, 
-            $item->precoNormalFloat 
+            $precoUnitarioPago, // (Preço Unitário)
+            $precoUnitarioNormal // (Preço Normal Unitário)
         );
+        
+        // --- Feedback de Sucesso ---
         
         $nomeProdutoDisplay = $item->nomeProduto;
         if ($item->quantidadeDesc === '1un' && $item->quantidadeInt === 1) {
              $nomeProdutoDisplay = preg_replace('/\b1un\b/i', '', $nomeProdutoDisplay);
              $nomeProdutoDisplay = trim(preg_replace('/\s+/', ' ', $nomeProdutoDisplay));
         }
-        $precoPagoTotal = $item->precoPagoFloat * $item->quantidadeInt;
-        $precoPagoTotalFmt = number_format($precoPagoTotal, 2, ',', '.');
-        $resposta = "Registado! ✅\n*{$nomeProdutoDisplay}* ({$item->quantidadeDesc}) - *R$ {$precoPagoTotalFmt}*";
         
-        if ($item->promocaoDetectada && $item->precoNormalFloat > $item->precoPagoFloat) {
-            $economiaItem = ($item->precoNormalFloat - $item->precoPagoFloat) * $item->quantidadeInt;
+        // (Calcula o preço TOTAL apenas para a mensagem de resposta)
+        $precoPagoTotal = $precoUnitarioPago * $item->quantidadeInt;
+        $precoPagoTotalFmt = number_format($precoPagoTotal, 2, ',', '.');
+        
+        // (Ajusta a descrição da quantidade se for "1x (1un)")
+        $qtdDisplay = $item->quantidadeDesc;
+        if ($item->quantidadeInt > 1 && $item->quantidadeDesc === '1un') {
+            $qtdDisplay = $item->quantidadeInt . "un";
+        }
+        
+        $resposta = "Registado! ✅\n*{$nomeProdutoDisplay}* ({$qtdDisplay}) - *R$ {$precoPagoTotalFmt}*";
+        
+        // Feedback de Promoção
+        if ($item->promocaoDetectada && $precoUnitarioNormal > $precoUnitarioPago) {
+            $economiaItem = ($precoUnitarioNormal - $precoUnitarioPago) * $item->quantidadeInt;
             $economiaFmt = number_format($economiaItem, 2, ',', '.');
             $resposta .= "\n🤑 Boa! Poupaste *R$ {$economiaFmt}* nesta promoção!";
         }
         
+        // Feedback de Comparação de Histórico
         $nomeNormalizado = StringUtils::normalize($item->nomeProduto);
         $historico = HistoricoPreco::getUltimoRegistro(
             $this->pdo, 
@@ -296,20 +314,23 @@ class BotController {
         
         if ($historico) {
             $ultimoPrecoUnit = (float)$historico['preco_unitario'];
-            $precoAtualUnit = $item->precoPagoFloat / $item->quantidadeInt;
+            $precoAtualUnit = $precoUnitarioPago; // (Agora está correto)
+            
             $diff = $precoAtualUnit - $ultimoPrecoUnit;
             $percentual = $ultimoPrecoUnit > 0 ? ($diff / $ultimoPrecoUnit) * 100 : 0;
+            
             $ultimoPrecoFmt = number_format($ultimoPrecoUnit, 2, ',', '.');
             $localUltimaCompra = $historico['estabelecimento_nome'] ?? 'outra loja';
             
-            if ($diff > 0.01 && $percentual > 5) {
+            if ($diff > 0.01 && $percentual > 5) { // Subiu mais de 5%
                 $resposta .= "\n📈 *Atenção:* Pagaste *R$ {$ultimoPrecoFmt}* (unid.) em {$localUltimaCompra} da última vez.";
-            } elseif ($diff < -0.01 && $percentual < -5) {
+            } elseif ($diff < -0.01 && $percentual < -5) { // Caiu mais de 5%
                 $resposta .= "\n📉 *Ótimo preço!* Pagaste *R$ {$ultimoPrecoFmt}* (unid.) em {$localUltimaCompra} da última vez.";
             }
         }
         
         return $resposta . "\n\nPróximo item?";
+        // --- (FIM DA CORREÇÃO) ---
     }
 
 /**
