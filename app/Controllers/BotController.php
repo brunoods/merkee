@@ -1,11 +1,12 @@
 <?php
 // ---
 // /app/Controllers/BotController.php
-// (VERSÃO COM CORREÇÃO NO TIMEOUT)
+// (VERSÃO FINAL COMPLETA - COM TODAS AS LÓGICAS)
 // ---
 
 namespace App\Controllers;
 
+// 1. Importa TODAS as dependências
 use PDO;
 use Exception;
 use App\Models\Compra;
@@ -23,16 +24,19 @@ use App\Controllers\Handlers\PurchaseStartHandler;
 use App\Controllers\Handlers\CronFinalizeHandler;
 use App\Controllers\Handlers\OnboardingHandler;
 
-
+/**
+ * O "Cérebro" do Bot.
+ * Decide para qual "Especialista" (Handler) enviar a mensagem.
+ */
 class BotController {
 
     private PDO $pdo;
     private Usuario $usuario;
     private ?Compra $compraAtiva;
     
-    private const TIMEOUT_MINUTOS = 10;
+    private const TIMEOUT_MINUTOS = 10; // Tempo para um estado de conversa expirar
 
-    // (Propriedades dos Handlers... idênticas)
+    // Propriedades para cachear os Handlers
     private ?ListHandler $listHandler = null;
     private ?ConfigHandler $configHandler = null;
     private ?PurchaseStartHandler $purchaseStartHandler = null;
@@ -46,31 +50,36 @@ class BotController {
         $this->compraAtiva = $compraAtiva;
     }
 
-    // --- (Getters para os Handlers - Padrão "Lazy Load" - idênticos) ---
+    // --- (Getters para os Handlers - Padrão "Lazy Load") ---
+
     private function getListHandler(): ListHandler {
         if ($this->listHandler === null) {
             $this->listHandler = new ListHandler($this->pdo, $this->usuario);
         }
         return $this->listHandler;
     }
+
     private function getConfigHandler(): ConfigHandler {
         if ($this->configHandler === null) {
             $this->configHandler = new ConfigHandler($this->pdo, $this->usuario);
         }
         return $this->configHandler;
     }
+
     private function getPurchaseStartHandler(): PurchaseStartHandler {
         if ($this->purchaseStartHandler === null) {
             $this->purchaseStartHandler = new PurchaseStartHandler($this->pdo, $this->usuario);
         }
         return $this->purchaseStartHandler;
     }
+
     private function getCronFinalizeHandler(): CronFinalizeHandler {
         if ($this->cronFinalizeHandler === null) {
             $this->cronFinalizeHandler = new CronFinalizeHandler($this->pdo, $this->usuario);
         }
         return $this->cronFinalizeHandler;
     }
+    
     private function getOnboardingHandler(): OnboardingHandler {
         if ($this->onboardingHandler === null) {
             $this->onboardingHandler = new OnboardingHandler($this->pdo, $this->usuario);
@@ -81,8 +90,9 @@ class BotController {
 
     /**
      * Ponto de entrada principal do Controller.
+     * (Recebe $contexto_extra do webhook, que pode conter 'location')
      */
-    public function processMessage(string $messageText): string 
+    public function processMessage(string $messageText, array $contexto_extra = []): string 
     {
         $comandoLimpo = strtolower(trim($messageText));
         
@@ -94,21 +104,16 @@ class BotController {
                 $intervalo = $agora->getTimestamp() - $inicioEstado->getTimestamp();
                 
                 if ($intervalo > (self::TIMEOUT_MINUTOS * 60)) {
-                    // --- (A CORREÇÃO ESTÁ AQUI) ---
                     // O estado expirou!
                     $estadoExpirado = $this->usuario->conversa_estado;
                     $this->usuario->clearState($this->pdo);
                     
-                    // (Regista o erro no log, mas NÃO PÁRA O SCRIPT)
+                    // (Regista o erro, mas NÃO PÁRA O SCRIPT)
                     throw new Exception("Estado '{$estadoExpirado}' do Usuário #{$this->usuario->id} expirou. Estado foi limpo.");
-                    // --- (FIM DA CORREÇÃO - O CATCH ABAIXO VAI PEGAR NISTO) ---
                 }
             } catch (Exception $e) {
-                // (O catch agora apanha o erro da data OU o erro de timeout que criámos)
+                // (O catch apanha o erro da data OU o erro de timeout que criámos)
                 
-                // --- (A CORREÇÃO ESTÁ AQUI) ---
-                // Se o estado expirou, limpamos o estado e CONTINUAMOS
-                // para que a mensagem ("Oi") seja processada como um novo comando.
                 if (str_contains($e->getMessage(), 'expirou')) {
                      // (O estado já foi limpo, não fazemos nada,
                      // deixamos o script continuar para o passo 2)
@@ -117,16 +122,18 @@ class BotController {
                     $this->usuario->clearState($this->pdo);
                     throw new Exception("Erro ao processar data do estado: " . $e->getMessage());
                 }
-                // --- (FIM DA CORREÇÃO) ---
             }
         }
 
         // 2. Se o usuário está num estado de conversa, delega para o Handler
         if ($this->usuario->conversa_estado) {
-            return $this->handleStatefulConversation($messageText); // (Usa $messageText original)
+            // (Passa o contexto_extra, que pode ter a localização)
+            return $this->handleStatefulConversation($messageText, $contexto_extra); 
         }
         
         // 3. Se não está num estado, trata como um novo comando
+        
+        // Se a compra está ativa, a lógica é diferente
         if ($this->compraAtiva) {
             return $this->processStateWithPurchase($comandoLimpo);
         } else {
@@ -137,29 +144,40 @@ class BotController {
 
     /**
      * Lida com todas as conversas que dependem de um estado (multi-passos)
-     * (Função idêntica à tua)
+     * (Junta o contexto do DB com o contexto_extra da localização)
      */
-    private function handleStatefulConversation(string $respostaUsuario): string
+    private function handleStatefulConversation(string $respostaUsuario, array $contexto_extra): string
     {
         $estado = $this->usuario->conversa_estado;
-        $contexto = $this->usuario->conversa_contexto ?? [];
+        
+        // Junta o contexto guardado no banco com o contexto_extra (localização)
+        $contexto = array_merge($this->usuario->conversa_contexto ?? [], $contexto_extra);
+        
+        
+        // Delega para o Handler apropriado com base no prefixo do estado
         
         if (str_starts_with($estado, 'onboarding_') || $estado === 'aguardando_decisao_onboarding' || $estado === 'aguardando_nome_para_onboarding') {
             return $this->getOnboardingHandler()->process($estado, $respostaUsuario, $contexto);
         }
+        
         if (str_starts_with($estado, 'lista_') || $estado === 'aguardando_nome_lista' || $estado === 'adicionando_itens_lista' || $estado === 'aguardando_lista_para_apagar') {
             return $this->getListHandler()->process($estado, $respostaUsuario, $contexto);
         }
+        
         if (str_starts_with($estado, 'config_') || $estado === 'aguardando_configuracao') {
             return $this->getConfigHandler()->process($estado, $respostaUsuario, $contexto);
         }
-        if (str_starts_with($estado, 'inicio_') || $estado === 'aguardando_local_manual_cidade' || $estado === 'aguardando_local_manual_estado' || $estado === 'aguardando_local_google' || $estado === 'aguardando_lista_para_iniciar' || $estado === 'aguardando_local_google_confirmacao') {
+        
+        // (Estado 'aguardando_localizacao' adicionado para o novo fluxo)
+        if (str_starts_with($estado, 'inicio_') || $estado === 'aguardando_local_manual_cidade' || $estado === 'aguardando_local_manual_estado' || $estado === 'aguardando_local_google' || $estado === 'aguardando_lista_para_iniciar' || $estado === 'aguardando_local_google_confirmacao' || $estado === 'aguardando_localizacao') {
             return $this->getPurchaseStartHandler()->process($estado, $respostaUsuario, $contexto);
         }
+        
         if ($estado === 'aguardando_confirmacao_finalizacao') {
              return $this->getCronFinalizeHandler()->process($estado, $respostaUsuario, $contexto);
         }
         
+        // Se o estado não for reconhecido, limpa e avisa
         $this->usuario->clearState($this->pdo);
         return "Opa! 🤔 Parece que me perdi na nossa conversa. Vamos recomeçar. O que gostarias de fazer?";
     }
@@ -167,15 +185,17 @@ class BotController {
 
     /**
      * Lógica principal quando o usuário NÃO TEM compra ativa
-     * (Função idêntica à tua)
+     * (Trata comandos de 'iniciar compra', 'listas', 'pesquisar', 'login', etc.)
      */
     private function processStateWithoutPurchase(string $comando): string {
         
+        // Comando: Pesquisar Preço (prioritário)
         if (str_starts_with($comando, 'pesquisar') || str_starts_with($comando, 'comparar')) {
             $partes = explode(' ', $comando, 2);
             if (count($partes) < 2 || empty(trim($partes[1]))) {
                 return "Para pesquisar, envie *pesquisar <nome do produto>* (ex: *pesquisar arroz 5kg*).";
             }
+            
             $nomeProduto = trim($partes[1]);
             $nomeNormalizado = StringUtils::normalize($nomeProduto);
 
@@ -190,6 +210,7 @@ class BotController {
             if (empty($precos)) {
                 return "Não encontrei registos recentes para *{$nomeProduto}* em *{$cidadeUsuario}*. 😕";
             }
+            
             $resposta = "Resultados para *{$nomeProduto}* em *{$cidadeUsuario}* (últimos 30 dias):\n";
             foreach ($precos as $preco) {
                 $precoFmt = number_format((float)$preco['preco_minimo'], 2, ',', '.');
@@ -200,22 +221,38 @@ class BotController {
             return $resposta;
         }
 
+        // Comandos "state-trigger" (que iniciam uma conversa)
         switch ($comando) {
+            
             case 'iniciar compra':
+                // Deixa o Handler de "Início de Compra" tomar conta
                 return $this->getPurchaseStartHandler()->process('inicio_start', $comando, []);
+            
             case 'listas':
             case 'criar lista':
             case 'ver listas':
             case 'apagar lista':
+                // Deixa o Handler de "Listas" tomar conta
                 return $this->getListHandler()->process('lista_start', $comando, []);
+                
             case 'config':
             case 'configurar':
             case 'configurações':
+                // Deixa o Handler de "Config" tomar conta
                 return $this->getConfigHandler()->process('config_start', $comando, []);
+            
+            // (Comando do Link Mágico)
+            case 'login':
+            case 'painel':
+            case 'dashboard':
+            case 'acesso':
+                return $this->handleMagicLinkRequest();
+
             case 'ajuda':
             case 'comandos':
             case 'tutorial':
                 return OnboardingHandler::getMensagemAjudaCompleta();
+            
             case 'olá':
             case 'oi':
             case 'bom dia':
@@ -223,30 +260,26 @@ class BotController {
             case 'boa noite':
                 $nome = $this->usuario->nome ? explode(' ', $this->usuario->nome)[0] : "Olá";
                 return "Olá, {$nome}! 👋\nPosso ajudar-te a iniciar uma compra, gerir as tuas listas ou pesquisar preços.\n\nEnvia *comandos* para ver todas as opções.";
+
             default:
                 return "Desculpa, não entendi. 😕\nEnvia *comandos* para ver tudo o que posso fazer.";
-
-                case 'login':
-            case 'painel':
-            case 'dashboard':
-            case 'acesso':
-                return $this->handleMagicLinkRequest();
         }
     }
 
 
     /**
-     * Lógica de finalizar compra
-     * (Função idêntica à tua)
+     * Lógica de finalizar compra (chamada internamente)
      */
     private function finalizarCompra(Compra $compra): string
     {
+        // Delega 100% da lógica de geração de relatório para o Serviço
         return CompraReportService::gerarResumoFinalizacao($this->pdo, $compra);
     }
 
-/**
+
+    /**
      * Lógica de registar um item (enquanto a compra está ativa)
-     * (VERSÃO CORRIGIDA - LÓGICA DE PREÇO)
+     * (COM A LÓGICA DE PREÇO UNITÁRIO/TOTAL CORRIGIDA)
      */
     private function processStateWithPurchase(string $comando): string {
         
@@ -254,19 +287,18 @@ class BotController {
             return $this->finalizarCompra($this->compraAtiva);
         }
 
+        // 1. O Parser agora retorna o preço UNITÁRIO
         $parser = new ItemParserService();
-        $item = $parser->parse($comando); // (O Parser agora retorna preço unitário)
+        $item = $parser->parse($comando); 
 
         if ($item->isSuccess() === false) {
             return $item->errorMessage ?? "Não entendi o formato, desculpe. 😕";
         }
         
-        // --- (INÍCIO DA CORREÇÃO) ---
-        // O Parser deu-nos o preço UNITÁRIO.
         $precoUnitarioPago = $item->precoPagoFloat;
         $precoUnitarioNormal = $item->precoNormalFloat;
         
-        // Passamos o preço UNITÁRIO para a base de dados
+        // 2. Passamos o preço UNITÁRIO para a base de dados
         $this->compraAtiva->addItem(
             $this->pdo, 
             $item->nomeProduto, 
@@ -284,11 +316,10 @@ class BotController {
              $nomeProdutoDisplay = trim(preg_replace('/\s+/', ' ', $nomeProdutoDisplay));
         }
         
-        // (Calcula o preço TOTAL apenas para a mensagem de resposta)
+        // 3. (Calcula o preço TOTAL apenas para a mensagem de resposta)
         $precoPagoTotal = $precoUnitarioPago * $item->quantidadeInt;
         $precoPagoTotalFmt = number_format($precoPagoTotal, 2, ',', '.');
         
-        // (Ajusta a descrição da quantidade se for "1x (1un)")
         $qtdDisplay = $item->quantidadeDesc;
         if ($item->quantidadeInt > 1 && $item->quantidadeDesc === '1un') {
             $qtdDisplay = $item->quantidadeInt . "un";
@@ -303,7 +334,7 @@ class BotController {
             $resposta .= "\n🤑 Boa! Poupaste *R$ {$economiaFmt}* nesta promoção!";
         }
         
-        // Feedback de Comparação de Histórico
+        // Feedback de Comparação de Histórico (agora usa o preço unitário correto)
         $nomeNormalizado = StringUtils::normalize($item->nomeProduto);
         $historico = HistoricoPreco::getUltimoRegistro(
             $this->pdo, 
@@ -314,7 +345,7 @@ class BotController {
         
         if ($historico) {
             $ultimoPrecoUnit = (float)$historico['preco_unitario'];
-            $precoAtualUnit = $precoUnitarioPago; // (Agora está correto)
+            $precoAtualUnit = $precoUnitarioPago; // (Correto)
             
             $diff = $precoAtualUnit - $ultimoPrecoUnit;
             $percentual = $ultimoPrecoUnit > 0 ? ($diff / $ultimoPrecoUnit) * 100 : 0;
@@ -330,23 +361,21 @@ class BotController {
         }
         
         return $resposta . "\n\nPróximo item?";
-        // --- (FIM DA CORREÇÃO) ---
     }
 
-/**
+    /**
      * Lida com o pedido de 'login' ou 'painel'.
      * Gera o Link Mágico e envia-o ao utilizador.
      */
     private function handleMagicLinkRequest(): string
     {
         try {
-            // 1. Gera e guarda o token (usando o método que criámos no Usuario.php)
+            // 1. Gera e guarda o token
             $token = $this->usuario->updateLoginToken($this->pdo);
             
             // 2. Lê o URL base do .env (usando $_ENV para evitar cache)
             $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL');
             if (empty($appUrl)) {
-                // (Não podemos logar aqui, mas o webhook.php vai apanhar esta exceção)
                 throw new Exception("APP_URL não está definido no ficheiro .env");
             }
 

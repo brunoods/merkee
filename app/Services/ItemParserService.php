@@ -1,7 +1,7 @@
 <?php
 // ---
 // /app/Services/ItemParserService.php
-// (VERSÃO 3.0 - CORRIGIDA A LÓGICA DE PREÇO)
+// (VERSÃO 3.1 - CORREÇÃO FINAL DO PARSER DE PREÇO)
 // ---
 
 namespace App\Services;
@@ -10,16 +10,14 @@ class ItemParserService {
 
     /**
      * Analisa o comando de texto e retorna um DTO.
+     * (Esta função está correta)
      */
     public function parse(string $comando): ParsedItemDTO 
     {
         $item = new ParsedItemDTO();
         $comandoLimpo = trim($comando);
 
-        // --- LÓGICA DE PARSING (Expressões Regulares) ---
-
-        // FORMATO PROMOÇÃO (ex: 2x Arroz 5kg 30,00 25,00 ou Arroz 5kg 30,00 25,00)
-        // (Qtd Opcional) (Nome Produto) (Preço Normal) (Preço Promo)
+        // FORMATO PROMOÇÃO (ex: 2x Arroz 5kg 30,00 25,00)
         if (preg_match('/^(\d+ ?[xX*uUuNn]?)? ?(.+?) ([\w\d.,]+) ([\d.,]+)$/', $comandoLimpo, $matches)) {
             
             $precoNormal = $this->formatPriceToDecimal($matches[3]);
@@ -27,8 +25,8 @@ class ItemParserService {
 
             if ($precoNormal !== null && $precoPromo !== null && $precoNormal > $precoPromo) {
                 $item->promocaoDetectada = true;
-                $item->precoNormalFloat = $precoNormal; // Preço Unitário Normal
-                $item->precoPagoFloat = $precoPromo;    // Preço Unitário Promocional
+                $item->precoNormalFloat = $precoNormal;
+                $item->precoPagoFloat = $precoPromo;
                 
                 $item->quantidadeDesc = !empty($matches[1]) ? trim($matches[1]) : '1un';
                 $item->quantidadeInt = (int)preg_replace('/[^0-9]/', '', $item->quantidadeDesc);
@@ -37,11 +35,10 @@ class ItemParserService {
                 $item->nomeProduto = trim($matches[2]);
                 
             } else {
-                 // Se não for promoção, cai para o formato padrão
                  return $this->parseFormatoPadrao($comandoLimpo, $item);
             }
         
-        // FORMATO BARRA (ex: Arroz / 1un / 10,00) - Assume Preço Unitário
+        // FORMATO BARRA (ex: Arroz / 1un / 10,00)
         } elseif (str_contains($comandoLimpo, '/')) {
             $partes = array_map('trim', explode('/', $comandoLimpo));
             if (count($partes) === 3) {
@@ -49,8 +46,7 @@ class ItemParserService {
                 $item->quantidadeDesc = $partes[1];
                 $item->quantidadeInt = (int)preg_replace('/[^0-9]/', '', $item->quantidadeDesc);
                 if ($item->quantidadeInt === 0) $item->quantidadeInt = 1;
-
-                $item->precoPagoFloat = $this->formatPriceToDecimal($partes[2]); // Preço Unitário
+                $item->precoPagoFloat = $this->formatPriceToDecimal($partes[2]);
             } else {
                  $item->errorMessage = "Formato inválido. 😕\nUse: *Produto / Quantidade / Preço*";
             }
@@ -70,16 +66,14 @@ class ItemParserService {
     
     /**
      * Helper PRIVADO para o formato mais comum.
-     * Ex: 2x Arroz 5kg 10,00 (Significa 2 unidades, 10.00 CADA)
-     * Ex: Arroz 5kg 10,00 (Significa 1 unidade, 10.00 CADA)
+     * (Esta função está correta)
      */
     private function parseFormatoPadrao(string $comando, ParsedItemDTO $item): ParsedItemDTO
     {
-         // (Qtd Opcional) (Nome Produto) (Preço Unitário)
         if (preg_match('/^(\d+ ?[xX*uUuNn]?)? ?(.+?) ([\d.,]+)$/', $comando, $matches)) {
             
-            $item->precoPagoFloat = $this->formatPriceToDecimal($matches[3]); // PREÇO UNITÁRIO
-            if ($item->precoPagoFloat === null) return $item; // Falha
+            $item->precoPagoFloat = $this->formatPriceToDecimal($matches[3]);
+            if ($item->precoPagoFloat === null) return $item;
 
             $item->nomeProduto = trim($matches[2]);
             $item->quantidadeDesc = !empty($matches[1]) ? trim($matches[1]) : '1un';
@@ -97,11 +91,25 @@ class ItemParserService {
 
     /**
      * Helper PRIVADO para formatar o preço.
+     * (VERSÃO CORRIGIDA)
      */
     private function formatPriceToDecimal(string $priceStr): ?float {
-        $cleanedPrice = str_replace(['R$', 'r$', ' ', '.'], '', $priceStr);
-        $cleanedPrice = str_replace(',', '.', $cleanedPrice);
         
+        // --- (INÍCIO DA CORREÇÃO) ---
+        // 1. Remove R$, r$, espaços
+        $cleanedPrice = str_replace(['R$', 'r$', ' '], '', $priceStr);
+        
+        // 2. Verifica se usa vírgula (ex: 5,00 ou 1.234,50)
+        if (str_contains($cleanedPrice, ',')) {
+            // Remove pontos de milhar (ex: 1.234,50 -> 1234,50)
+            $cleanedPrice = str_replace('.', '', $cleanedPrice);
+            // Troca a vírgula decimal por ponto (ex: 1234,50 -> 1234.50)
+            $cleanedPrice = str_replace(',', '.', $cleanedPrice);
+        }
+        // Se não usou vírgula, ele já deve estar no formato 5.00 (que é válido)
+        // --- (FIM DA CORREÇÃO) ---
+
+        // 3. Verifica se é um número válido após a limpeza
         return is_numeric($cleanedPrice) ? (float)$cleanedPrice : null;
     }
 }
