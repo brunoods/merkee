@@ -1,14 +1,15 @@
 <?php
 // ---
 // /public/detalhe_compra.php
-// (Funcionalidade #10: Detalhe de Compra - UI/UX Nível 10)
+// (Funcionalidade #10: Detalhe de Compra - Dark Theme & Responsivo)
 // ---
 
 session_start();
 
 // 1. Segurança: Verifica se o utilizador está logado
 if (!isset($_SESSION['user_id'])) {
-    die("Acesso negado. Por favor, faz login através do link enviado no teu WhatsApp.");
+    header("Location: auth.php"); 
+    exit;
 }
 
 // 2. Carrega tudo
@@ -51,32 +52,36 @@ if ($compraId === 0) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Detalhe da Compra - Merkee</title>
     <style>
-        /* Variáveis CSS para consistência com o Dashboard */
+        /* Paleta de Cores Dark Theme */
         :root {
-            --cor-principal: #005f73;
-            --cor-secundaria: #0a9396;
-            --cor-fundo: #f8f9fa;
-            --cor-sucesso: #2a9d8f;
-            --cor-alerta: #e63946;
-            --cor-texto: #343a40;
-            --cor-borda: #dee2e6;
+            --cor-fundo: #121212;
+            --cor-fundo-card: #1f1f1f;
+            --cor-texto-principal: #f0f0f0;
+            --cor-texto-secundaria: #a0a0a0;
+            --cor-principal: #0a9396; /* Azul Água */
+            --cor-sucesso: #90ee90; /* Verde Claro para Poupança */
+            --cor-alerta: #ff6b6b; /* Vermelho Claro para Gasto */
+            --cor-borda: #444444;
+            --cor-hover: #3c3c3c;
         }
 
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
             background: var(--cor-fundo); 
             margin: 0; 
             padding: 20px; 
-            color: var(--cor-texto); 
+            color: var(--cor-texto-principal); 
         }
         .container { 
-            max-width: 1000px; 
+            max-width: 1100px; 
             margin: 20px auto; 
-            background: #fff;
+            background: var(--cor-fundo-card);
             padding: 30px;
             border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5); 
         }
+
+        /* HEADER */
         header { 
             display: flex; 
             justify-content: space-between; 
@@ -91,37 +96,51 @@ if ($compraId === 0) {
             font-size: 28px; 
         }
         header a { 
-            color: var(--cor-principal); 
+            color: var(--cor-texto-principal); 
             text-decoration: none; 
             font-weight: 600; 
             padding: 8px 15px;
-            border: 1px solid var(--cor-principal);
+            border: 1px solid var(--cor-borda);
             border-radius: 6px;
             transition: background 0.2s;
         }
         header a:hover {
             background: var(--cor-principal);
-            color: #fff;
+            border-color: var(--cor-principal);
+            color: var(--cor-fundo-card);
         }
-        .content { margin-top: 20px; }
         
-        /* Cabeçalho da Compra como Card de Destaque */
+        /* BOTÃO VOLTAR */
+        .link-voltar {
+            color: var(--cor-principal);
+            text-decoration: none;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 25px;
+            transition: color 0.2s;
+        }
+        .link-voltar:hover {
+            color: var(--cor-sucesso);
+        }
+
+        /* CABEÇALHO DA COMPRA (CARD DE DESTAQUE) */
         .compra-header { 
-            background: #f1f7f9; /* Fundo mais claro para destaque */
+            background: #252525; 
             padding: 25px; 
             border-radius: 10px; 
-            border: 1px solid #d4e3e8;
+            border-left: 5px solid var(--cor-principal);
             margin-bottom: 30px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
         }
         .compra-header h2 { 
             margin: 0 0 5px 0; 
-            color: var(--cor-principal); 
+            color: var(--cor-texto-principal); 
             font-size: 24px;
         }
         .compra-header p { 
             margin: 0 0 15px 0; 
             font-size: 15px; 
-            color: #777; 
+            color: var(--cor-texto-secundaria); 
         }
         .compra-header .totais { 
             display: flex; 
@@ -140,38 +159,62 @@ if ($compraId === 0) {
         .totais .gasto { color: var(--cor-alerta); }
         .totais .poupado { color: var(--cor-sucesso); }
         
-        /* Tabela de Itens */
-        h3 { color: var(--cor-texto); margin: 30px 0 15px 0; font-size: 18px; border-left: 4px solid var(--cor-secundaria); padding-left: 10px; }
-        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden; }
-        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--cor-borda); }
-        th { background-color: var(--cor-fundo); font-size: 14px; color: var(--cor-secundaria); font-weight: 600; }
-        td { font-size: 15px; }
+        /* TÍTULO DOS ITENS */
+        h3 { color: var(--cor-texto-principal); margin: 30px 0 15px 0; font-size: 18px; border-left: 4px solid var(--cor-principal); padding-left: 10px; }
         
+        /* TABELA DE ITENS */
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        table { 
+            width: 100%; 
+            min-width: 700px;
+            border-collapse: collapse; 
+            background: var(--cor-fundo-card); 
+        }
+        th, td { 
+            padding: 12px 15px; 
+            text-align: left; 
+            border-bottom: 1px solid var(--cor-borda); 
+        }
+        th { 
+            background-color: #252525; 
+            font-size: 14px; 
+            color: var(--cor-principal); 
+            font-weight: 600; 
+            border-bottom: 2px solid var(--cor-principal);
+        }
+        td { font-size: 15px; }
+
         .col-valor { text-align: right; font-weight: 600; color: var(--cor-alerta); }
         .col-poupanca { text-align: right; font-weight: 600; color: var(--cor-sucesso); }
         .col-preco-normal { text-decoration: line-through; color: #777; font-size: 12px; font-weight: 400; display: block; }
         .col-qtd { width: 150px; }
-
-        .error-box { background: #f8d7da; border: 1px solid #f5c6cb; color: var(--cor-alerta); padding: 15px; border-radius: 8px; }
+        .promo-tag { color: var(--cor-sucesso); font-weight: 600; }
+        .item-poupanca-cell { color: var(--cor-sucesso); }
         
-        /* Botão Voltar (Link) */
-        .link-voltar {
-            color: var(--cor-secundaria);
-            text-decoration: none;
-            font-weight: 600;
-            display: inline-block;
-            margin-bottom: 25px;
-            transition: color 0.2s;
-        }
-        .link-voltar:hover {
-            color: var(--cor-principal);
+        /* RESPONSIVIDADE (MOBILE) */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .container { padding: 20px; margin: 10px auto; }
+            header h1 { font-size: 24px; }
+            header { flex-direction: column; align-items: flex-start; gap: 10px; }
+            
+            .compra-header .totais { 
+                flex-direction: column; 
+                gap: 15px; 
+            }
+            .compra-header { padding: 20px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>O Meu Painel 🛒</h1>
+            <h1>Detalhes da Compra 🛒</h1>
             <a href="logout.php">Sair</a>
         </header>
         
@@ -185,7 +228,7 @@ if ($compraId === 0) {
             <?php elseif ($compra): ?>
                 
                 <div class="compra-header">
-                    <h2>Detalhes da Compra em: <?php echo htmlspecialchars($compra['estabelecimento_nome']); ?></h2>
+                    <h2><?php echo htmlspecialchars($compra['estabelecimento_nome']); ?></h2>
                     <p>
                         Realizada em: <?php echo (new DateTime($compra['data_fim']))->format('d/m/Y \à\s H:i'); ?>
                     </p>
@@ -197,58 +240,60 @@ if ($compraId === 0) {
                 </div>
 
                 <h3>Itens Registados (<?php echo count($itens); ?>)</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Produto</th>
-                            <th class="col-qtd">Quantidade</th>
-                            <th class="col-valor">Preço Pago (Unid.)</th>
-                            <th class="col-poupanca">Poupança (Total)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($itens as $item): 
-                            // Calcula a poupança TOTAL do item
-                            $poupancaTotal = 0;
-                            if ($item['em_promocao'] && $item['preco_normal'] > $item['preco']) {
-                                // Diferença unitária * quantidade total
-                                $poupancaUnitaria = (float)$item['preco_normal'] - (float)$item['preco'];
-                                $poupancaTotal = $poupancaUnitaria * (int)$item['quantidade'];
-                            }
-                            
-                            // Calcula o preço total pago para display
-                            $precoTotalPago = (float)$item['preco'] * (int)$item['quantidade'];
-                        ?>
+                
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
                             <tr>
-                                <td>
-                                    <?php echo htmlspecialchars($item['produto_nome']); ?>
-                                    <?php if ($item['em_promocao']): ?>
-                                        <span style="display: block; font-size: 11px; color: var(--cor-sucesso); font-weight: 600;">✨ Em Promoção!</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="col-qtd">
-                                    <?php echo htmlspecialchars($item['quantidade_desc']); ?> 
-                                    <span style="color: #777;">(<?php echo $item['quantidade']; ?> unidades)</span>
-                                </td>
-                                <td class="col-valor">
-                                    R$ <?php echo number_format($precoTotalPago, 2, ',', '.'); ?> 
-                                    <span class="col-preco-normal">Unid: R$ <?php echo number_format($item['preco'], 2, ',', '.'); ?></span>
-                                </td>
-                                <td class="col-poupanca">
-                                    <?php if ($poupancaTotal > 0): ?>
-                                        R$ <?php echo number_format($poupancaTotal, 2, ',', '.'); ?>
-                                    <?php else: ?>
-                                        -
-                                    <?php endif; ?>
-                                </td>
+                                <th>Produto</th>
+                                <th class="col-qtd">Quantidade</th>
+                                <th class="col-valor">Preço Pago (Total)</th>
+                                <th class="col-poupanca">Poupança (Total)</th>
                             </tr>
-                        <?php endforeach; ?>
-                        
-                        <?php if (empty($itens)): ?>
-                             <tr><td colspan="4" style="text-align: center; color: #777;">Nenhum item foi registado nesta compra.</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($itens as $item): 
+                                // Calcula a poupança TOTAL do item
+                                $poupancaTotal = 0;
+                                if ($item['em_promocao'] && $item['preco_normal'] > $item['preco']) {
+                                    // Diferença unitária * quantidade total
+                                    $poupancaUnitaria = (float)$item['preco_normal'] - (float)$item['preco'];
+                                    $poupancaTotal = $poupancaUnitaria * (int)$item['quantidade'];
+                                }
+                                // Calcula o preço total pago para display
+                                $precoTotalPago = (float)$item['preco'] * (int)$item['quantidade'];
+                            ?>
+                                <tr>
+                                    <td>
+                                        <?php echo htmlspecialchars($item['produto_nome']); ?>
+                                        <?php if ($item['em_promocao']): ?>
+                                            <span class="promo-tag">✨ Promoção!</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="col-qtd">
+                                        <?php echo htmlspecialchars($item['quantidade_desc']); ?> 
+                                        <span style="color: var(--cor-texto-secundaria);">(<?php echo $item['quantidade']; ?> unid.)</span>
+                                    </td>
+                                    <td class="col-valor">
+                                        R$ <?php echo number_format($precoTotalPago, 2, ',', '.'); ?> 
+                                        <span class="col-preco-normal">Unid: R$ <?php echo number_format($item['preco'], 2, ',', '.'); ?></span>
+                                    </td>
+                                    <td class="col-poupanca item-poupanca-cell">
+                                        <?php if ($poupancaTotal > 0): ?>
+                                            R$ <?php echo number_format($poupancaTotal, 2, ',', '.'); ?>
+                                        <?php else: ?>
+                                            -
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            
+                            <?php if (empty($itens)): ?>
+                                 <tr><td colspan="4" style="text-align: center; color: var(--cor-texto-secundaria);">Nenhum item foi registado nesta compra.</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
 
             <?php endif; ?>
         </div>
