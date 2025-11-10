@@ -189,5 +189,22 @@ class Compra {
             'itens' => $itens
         ];
     }
+    /**
+     * Encontra TODAS as compras finalizadas de um usuário (para o Dashboard).
+     */
+    public static function findAllCompletedByUser(PDO $pdo, int $usuario_id): array
+    {
+        $sql = "
+            SELECT c.id, c.data_fim, c.total_gasto, c.total_poupado, e.nome as estabelecimento_nome
+            FROM compras c
+            JOIN estabelecimentos e ON c.estabelecimento_id = e.id
+            WHERE c.usuario_id = ? 
+              AND c.status = 'finalizada'
+            ORDER BY c.data_fim DESC
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$usuario_id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }
 ?>

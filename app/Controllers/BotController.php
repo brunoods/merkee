@@ -225,6 +225,12 @@ class BotController {
                 return "Olá, {$nome}! 👋\nPosso ajudar-te a iniciar uma compra, gerir as tuas listas ou pesquisar preços.\n\nEnvia *comandos* para ver todas as opções.";
             default:
                 return "Desculpa, não entendi. 😕\nEnvia *comandos* para ver tudo o que posso fazer.";
+
+                case 'login':
+            case 'painel':
+            case 'dashboard':
+            case 'acesso':
+                return $this->handleMagicLinkRequest();
         }
     }
 
@@ -306,5 +312,39 @@ class BotController {
         return $resposta . "\n\nPróximo item?";
     }
 
+/**
+     * Lida com o pedido de 'login' ou 'painel'.
+     * Gera o Link Mágico e envia-o ao utilizador.
+     */
+    private function handleMagicLinkRequest(): string
+    {
+        try {
+            // 1. Gera e guarda o token (usando o método que criámos no Usuario.php)
+            $token = $this->usuario->updateLoginToken($this->pdo);
+            
+            // 2. Lê o URL base do .env (usando $_ENV para evitar cache)
+            $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL');
+            if (empty($appUrl)) {
+                // (Não podemos logar aqui, mas o webhook.php vai apanhar esta exceção)
+                throw new Exception("APP_URL não está definido no ficheiro .env");
+            }
+
+            // 3. Monta o link
+            $magicLink = $appUrl . "/merkee/public/auth.php?token=" . $token;
+            
+            // 4. Prepara a resposta
+            $nomeCurto = explode(' ', $this->usuario->nome)[0];
+            $resposta = "Olá, {$nomeCurto}! 👋\n\n";
+            $resposta .= "Aqui está o teu link de acesso seguro ao teu painel. Clica nele para veres os teus relatórios e histórico de gastos.\n\n";
+            $resposta .= $magicLink;
+            $resposta .= "\n\n(Este link é válido apenas por 10 minutos e só pode ser usado uma vez).";
+            
+            return $resposta;
+
+        } catch (Exception $e) {
+            // (O webhook.php irá logar isto)
+            throw new Exception("Erro ao gerar o link mágico: " . $e->getMessage());
+        }
+    }
 }
 ?>

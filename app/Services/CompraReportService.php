@@ -1,65 +1,70 @@
 <?php
 // ---
 // /app/Services/CompraReportService.php
-// (VERSÃO COM NAMESPACE)
-// Responsável por GERAR O TEXTO do relatório de finalização de compra.
-// Esta lógica é partilhada entre o BotController e o CronFinalizeHandler.
+// (VERSÃO ATUALIZADA - AGORA GUARDA OS TOTAIS NA DB)
 // ---
 
-// 1. Define o Namespace
 namespace App\Services;
 
-// 2. Importa as dependências
 use PDO;
 use App\Models\Compra;
 use App\Models\Estabelecimento;
 use App\Models\HistoricoPreco;
 use App\Utils\StringUtils;
-use DateTime; // (Classe global do PHP)
+use DateTime; 
 
-/**
- * Classe de Serviço
- * Centraliza a lógica de geração de relatórios de compra.
- */
 class CompraReportService {
 
     /**
-     * Finaliza uma compra e gera o texto do relatório detalhado.
-     *
-     * @param PDO $pdo A conexão com a base de dados
-     * @param Compra $compra O objeto da compra a finalizar
-     * @return string O relatório completo para enviar ao usuário
+     * Finaliza uma compra, CALCULA E GUARDA os totais,
+     * e gera o texto do relatório detalhado.
      */
     public static function gerarResumoFinalizacao(PDO $pdo, Compra $compra): string
     {
         // 1. Finaliza a compra (obtém os totais e itens)
-        // Este método 'finalize' ATUALIZA o status e retorna os dados
+        // (Este método 'finalize' apenas muda o status e retorna os itens)
         $resumo = $compra->finalize($pdo);
-        $totalGasto = $resumo['total']; 
-        $itens = $resumo['itens']; // Itens desta compra
+        $itens = $resumo['itens']; 
         
         $estabelecimento = Estabelecimento::findById($pdo, $compra->estabelecimento_id);
         $nomeLocal = $estabelecimento ? "$estabelecimento->nome ($estabelecimento->cidade/$estabelecimento->estado)" : "Local desconhecido";
-        
-        // (Usa a classe DateTime global importada com 'use')
         $dataCompra = (new DateTime($compra->data_inicio))->format('d/m/Y');
-
 
         // 2. Monta o cabeçalho
         $resposta = "Compra finalizada! 🛍️\n\n";
         $resposta .= "Resumo da tua compra em *{$nomeLocal}* no dia {$dataCompra}:\n\n";
-        $resposta .= "Total Gasto: *R$ " . number_format($totalGasto, 2, ',', '.') . "*\n";
         
+        $totalGasto = 0;
         $totalPoupado = 0;
         $totalPromocoes = 0;
 
-        // 3. Itera sobre os itens para calcular poupanças
+        // 3. Itera sobre os itens para calcular totais
         foreach ($itens as $item) {
-            if ($item['em_promocao'] && $item['preco_normal'] > $item['preco']) {
+            $precoItem = (float)$item['preco'];
+            $quantidadeItem = (int)$item['quantidade'];
+            $totalGasto += ($precoItem * $quantidadeItem); // (Calcula o total gasto)
+            
+            if ($item['em_promocao'] && $item['preco_normal'] > $precoItem) {
                 $totalPromocoes++;
-                $totalPoupado += ((float)$item['preco_normal'] - (float)$item['preco']) * (int)$item['quantidade'];
+                $totalPoupado += ((float)$item['preco_normal'] - $precoItem) * $quantidadeItem;
             }
         }
+
+        // --- (INÍCIO DA NOVA LÓGICA) ---
+        // 4. Guarda os totais na tabela 'compras'
+        try {
+            $stmt = $pdo->prepare(
+                "UPDATE compras SET total_gasto = ?, total_poupado = ? WHERE id = ?"
+            );
+            $stmt->execute([$totalGasto, $totalPoupado, $compra->id]);
+        } catch (\Exception $e) {
+            // (Não faz nada se falhar, para não quebrar o bot, mas podemos logar no futuro)
+        }
+        // --- (FIM DA NOVA LÓGICA) ---
+
+
+        // 5. Continua a montar a resposta para o WhatsApp
+        $resposta .= "Total Gasto: *R$ " . number_format($totalGasto, 2, ',', '.') . "*\n";
 
         if ($totalPoupado > 0.01) {
             $resposta .= "Promoções: *{$totalPromocoes}* itens\n";
@@ -68,25 +73,22 @@ class CompraReportService {
         
         $resposta .= "\n--- *Detalhes e Comparações* ---\n";
 
-        // 4. Itera sobre os itens para comparar preços
+        // 6. Itera sobre os itens para comparar preços (lógica antiga)
         foreach ($itens as $item) {
             $nomeProduto = $item['produto_nome'];
-            // (Usa a classe StringUtils importada com 'use')
             $nomeNormalizado = StringUtils::normalize($nomeProduto);
-            $precoPagoUnit = (float)$item['preco']; // Preço unitário pago
+            $precoPagoUnit = (float)$item['preco'];
             $quantidade = (int)$item['quantidade'];
             $precoPagoFmt = number_format($precoPagoUnit, 2, ',', '.');
             
             $resposta .= "\n*{$nomeProduto}* ({$quantidade}un)";
             $resposta .= "\n  Pagaste: *R$ {$precoPagoFmt}* (unid.)";
 
-            // Busca o último preço pago ANTES desta compra
-            // (Usa a classe HistoricoPreco importada com 'use')
             $historico = HistoricoPreco::getUltimoRegistro(
                 $pdo, 
                 $compra->usuario_id, 
                 $nomeNormalizado, 
-                $compra->id // ID da compra atual para excluir
+                $compra->id
             );
 
             if ($historico) {
@@ -97,7 +99,7 @@ class CompraReportService {
                 
                 $diff = $precoPagoUnit - $ultimoPrecoUnit;
 
-                if (abs($diff) < 0.01) { // (Considera igual se a diferença for < 1 cêntimo)
+                if (abs($diff) < 0.01) {
                     $resposta .= "\n  Histórico: (Manteve 😐) R$ {$ultimoPrecoFmt} em {$localUltimaCompra}";
                 } elseif ($diff > 0) {
                     $resposta .= "\n  Histórico: (Subiu 📈) R$ {$ultimoPrecoFmt} em {$localUltimaCompra} ({$dataUltimaCompra})";

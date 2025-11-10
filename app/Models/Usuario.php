@@ -206,5 +206,51 @@ class Usuario {
         // Atualiza o objeto local
         $this->{$coluna} = $valor;
     }
+
+    /**
+     * Gera e guarda um token de login único e temporário.
+     */
+    public function updateLoginToken(PDO $pdo): string
+    {
+        // Gera um token seguro de 64 caracteres
+        $token = bin2hex(random_bytes(32)); 
+        
+        // Define a validade para 10 minutos a partir de agora
+        $expiraEm = (new \DateTime('+10 minutes'))->format('Y-m-d H:i:s');
+
+        $stmt = $pdo->prepare(
+            "UPDATE usuarios SET login_token = ?, login_token_expira_em = ? WHERE id = ?"
+        );
+        $stmt->execute([$token, $expiraEm, $this->id]);
+        
+        $this->login_token = $token;
+        $this->login_token_expira_em = $expiraEm;
+        
+        return $token;
+    }
+
+    /**
+     * Encontra um usuário pelo seu token de login,
+     * garantindo que não tenha expirado.
+     */
+    public static function findByLoginToken(PDO $pdo, string $token): ?Usuario 
+    {
+        $stmt = $pdo->prepare(
+            "SELECT * FROM usuarios WHERE login_token = ? AND login_token_expira_em > NOW()"
+        );
+        $stmt->execute([$token]);
+        $userData = $stmt->fetch();
+        
+        if ($userData) {
+            // (Encontrou o utilizador E o token é válido)
+            // Limpa o token para que não possa ser usado novamente
+            $pdo->prepare("UPDATE usuarios SET login_token = NULL WHERE id = ?")
+                ->execute([$userData['id']]);
+                
+            return self::fromData($userData);
+        }
+        
+        return null; // Token inválido ou expirado
+    }
 }
 ?>
