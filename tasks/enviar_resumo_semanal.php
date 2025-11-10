@@ -4,14 +4,14 @@
 // (VERSÃO COM BOOTSTRAP, NAMESPACE E FIX IS_ATIVO)
 // ---
 
-// 1. Includes
+// 1. (A CORREÇÃO) Incluir Arquivo ÚNICO de Bootstrap
 require_once __DIR__ . '/../config/bootstrap.php';
 
-// 2. Usar os "Namespaces"
+// 2. (A CORREÇÃO) Usar os "Namespaces"
 use App\Models\Usuario;
 use App\Services\WhatsAppService;
 
-// 3. Logging
+// 3. (A CORREÇÃO) Logging
 $logFilePath = __DIR__ . '/../storage/cron_resumo_log.txt'; 
 function writeToLog($message) {
     global $logFilePath;
@@ -24,6 +24,7 @@ try {
     $pdo = getDbConnection();
     $waService = new WhatsAppService();
 
+    // (Usa a classe Usuario importada)
     $usuarios = Usuario::findAll($pdo); // (Agora contém 'is_ativo')
     if (empty($usuarios)) {
         writeToLog("Nenhum usuário encontrado.");
@@ -34,13 +35,13 @@ try {
 
     foreach ($usuarios as $usuario) {
         
-        // (NOVA VERIFICAÇÃO) Não envia para utilizadores inativos
+        // 4. (A CORREÇÃO) Não enviar para usuários inativos
         if ($usuario->is_ativo === false) {
             writeToLog("A saltar Usuário #{$usuario->id}: Inativo.");
             continue;
         }
 
-        // (VERIFICAÇÃO ANTIGA)
+        // (VERIFICAÇÃO ANTIGA - manter)
         if ($usuario->receber_alertas === false) { // (Usa a config de 'alertas')
             writeToLog("A saltar Usuário #{$usuario->id}: Alertas (e resumos) desativados.");
             continue; 
@@ -48,6 +49,7 @@ try {
         
         $nomeUsuario = $usuario->nome ? explode(' ', $usuario->nome)[0] : "Olá"; 
 
+        // Query SQL (idêntica)
         $sql = "
             SELECT SUM((i.preco_normal - i.preco) * i.quantidade) as total_poupado
             FROM itens_compra i

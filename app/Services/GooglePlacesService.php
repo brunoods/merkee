@@ -16,7 +16,7 @@ class GooglePlacesService {
     private string $apiUrl = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json';
 
     public function __construct() {
-        // 3. Lê do .env
+        // 3. (A CORREÇÃO) Lê do .env
         $this->apiKey = getenv('GOOGLE_PLACES_API_KEY');
         if (empty($this->apiKey)) {
             throw new Exception("GOOGLE_PLACES_API_KEY não definida no .env");
@@ -52,11 +52,14 @@ class GooglePlacesService {
 
         $responseJson = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
 
         if ($httpCode != 200) {
-            // Falha silenciosa, apenas não retorna nada.
-            return []; 
+            // (Lança exceção para o BotController/Webhook apanhar)
+             throw new Exception(
+                "Falha na API do Google Places. HTTP $httpCode. Resposta: $responseJson. Erro cURL: $curlError"
+            );
         }
 
         $data = json_decode($responseJson, true);

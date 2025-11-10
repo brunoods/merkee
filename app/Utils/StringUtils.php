@@ -4,10 +4,10 @@
 // (VERSÃO COM NAMESPACE)
 // ---
 
-// 1. Define o Namespace
+// 1. (A CORREÇÃO) Define o Namespace
 namespace App\Utils;
 
-// (Esta classe não tem dependências externas)
+// (Esta classe não tem dependências externas, não precisa de 'use')
 
 class StringUtils {
 
@@ -25,13 +25,15 @@ class StringUtils {
         
         // 2. Remove acentos
         if (function_exists('transliterator_transliterate')) {
+            // Usa a função moderna se disponível
             $string = transliterator_transliterate('Any-Latin; Latin-ASCII; [\u0080-\u7fff] remove', $string);
         } else {
+            // Fallback (pode não ser perfeito)
             $string = @iconv('UTF-8', 'ASCII//TRANSLIT', $string);
         }
 
-        // 3. Remove prefixos de quantidade (ex: "1x ", "1un ", "1 ")
-        $string = preg_replace('/^(\d+ ?[xX] ?|\d+ ?[uU][nN] ?|\d+ ?)/', '', $string);
+        // 3. Remove prefixos de quantidade (Ex: "2x ", "1un ", "1 ")
+        $string = preg_replace('/^(\d+ ?[xX*] ?|\d+ ?[uU][nN] ?|\d+ ?)/', '', $string);
 
         // 4. Remove caracteres especiais (mantém letras, números e espaços)
         $string = preg_replace('/[^a-z0-9\s]/', '', $string);

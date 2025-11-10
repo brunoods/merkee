@@ -1,7 +1,6 @@
 <?php
 // ---
 // /app/Models/HistoricoPreco.php
-// (VERSÃO ATUALIZADA COM OTIMIZAÇÃO DE LISTA)
 // ---
 
 // 1. (A CORREÇÃO)
@@ -9,93 +8,85 @@ namespace App\Models;
 
 // 2. (A CORREÇÃO)
 use PDO;
-use DateTime;
+use DateTime; // (Esta classe usa DateTime)
 
+// 3. (A CORREÇÃO)
 class HistoricoPreco {
 
+    /**
+     * Busca o último preço pago pelo usuário por um produto,
+     * EXCLUINDO a compra atual.
+     */
     public static function getUltimoRegistro(PDO $pdo, int $usuario_id, string $produtoNomeNormalizado, int $compraAtualId): ?array
     {
         $sql = "
-            SELECT 
-                i.preco,
-                c.estabelecimento_id,
-                e.nome AS estabelecimento_nome
-            FROM itens_compra i
-            JOIN compras c ON i.compra_id = c.id
-            JOIN estabelecimentos e ON c.estabelecimento_id = e.id
-            WHERE c.usuario_id = ?
-              AND i.produto_nome_normalizado = ?
-              AND c.id != ?
-              AND c.status = 'finalizada'
-            ORDER BY c.data_inicio DESC
+            SELECT hp.preco_unitario, hp.data_compra, e.nome as estabelecimento_nome
+            FROM historico_precos hp
+            JOIN estabelecimentos e ON hp.estabelecimento_id = e.id
+            WHERE hp.usuario_id = ? 
+              AND hp.produto_nome_normalizado = ?
+              AND hp.compra_id != ? 
+            ORDER BY hp.data_compra DESC
             LIMIT 1
         ";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$usuario_id, $produtoNomeNormalizado, $compraAtualId]);
-        $resultado = $stmt->fetch(PDO::FETCH_ASSOC); 
-        return $resultado !== false ? $resultado : null;
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
-
+    
+    /**
+     * Busca o histórico de preços para o gráfico (não implementado no bot, mas útil para o futuro)
+     */
     public static function getPriceTrend(PDO $pdo, int $usuario_id, string $produtoNomeNormalizado, int $compraAtualId): array
     {
         $sql = "
-            SELECT i.preco
-            FROM itens_compra i
-            JOIN compras c ON i.compra_id = c.id
-            WHERE c.usuario_id = ?
-              AND i.produto_nome_normalizado = ?
-              AND c.id != ?
-              AND c.status = 'finalizada'
-            ORDER BY c.data_inicio DESC
-            LIMIT 4 
+            SELECT hp.preco_unitario, hp.data_compra
+            FROM historico_precos hp
+            WHERE hp.usuario_id = ? 
+              AND hp.produto_nome_normalizado = ?
+              AND hp.compra_id != ? 
+            ORDER BY hp.data_compra ASC
+            LIMIT 10
         ";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$usuario_id, $produtoNomeNormalizado, $compraAtualId]);
-        $precos = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
-        return array_reverse($precos);
-    }
-
-    public static function findBestPricesInCity(PDO $pdo, string $produtoNomeNormalizado, string $cidade, int $dias = 30): array
-    {
-        $date = new DateTime();
-        $date->modify("-{$dias} days");
-        $dataCorte = $date->format('Y-m-d H:i:s'); 
-        $sql = "
-            SELECT 
-                e.nome AS estabelecimento_nome,
-                MIN(i.preco) AS preco_minimo, 
-                AVG(i.preco) AS preco_medio,  
-                COUNT(i.id) AS total_registos 
-            FROM itens_compra i
-            JOIN compras c ON i.compra_id = c.id
-            JOIN estabelecimentos e ON c.estabelecimento_id = e.id
-            WHERE 
-                i.produto_nome_normalizado = ?
-              AND e.cidade = ?
-              AND c.status = 'finalizada'
-              AND c.data_fim >= ?
-            GROUP BY 
-                e.id, e.nome 
-            ORDER BY 
-                preco_minimo ASC, preco_medio ASC 
-            LIMIT 5
-        ";
-        $stmt = $pdo->prepare($sql);
-        $stmt->bindValue(1, $produtoNomeNormalizado, PDO::PARAM_STR);
-        $stmt->bindValue(2, $cidade, PDO::PARAM_STR);
-        $stmt->bindValue(3, $dataCorte, PDO::PARAM_STR);
-        $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
-     * (NOVO!) Encontra os preços para MÚLTIPLOS produtos de uma vez (otimizado).
-     *
-     * @param PDO $pdo
-     * @param string $cidade
-     * @param array $produtosNormalizados (ex: ['arroz 5kg', 'cafe pilao 500g'])
-     * @param int $dias
-     * @return array (ex: [ ['produto_nome_normalizado' => 'arroz 5kg', 'estabelecimento_nome' => 'Mercado A', 'preco_minimo' => 20.50, 'est_id' => 1] ])
+     * (Usado pelo comando 'pesquisar')
+     * Encontra o preço mais baixo registado para um produto numa cidade
+     * nos últimos X dias.
+     */
+    public static function findBestPricesInCity(PDO $pdo, string $produtoNomeNormalizado, string $cidade, int $dias = 30): array
+    {
+        // (Usa a classe DateTime importada)
+        $dataLimite = (new DateTime("-{$dias} days"))->format('Y-m-d');
+        
+        $sql = "
+            SELECT 
+                hp.estabelecimento_id,
+                e.nome as estabelecimento_nome,
+                MIN(hp.preco_unitario) as preco_minimo,
+                MAX(hp.data_compra) as data_mais_recente
+            FROM historico_precos hp
+            JOIN estabelecimentos e ON hp.estabelecimento_id = e.id
+            WHERE hp.produto_nome_normalizado = ?
+              AND e.cidade = ?
+              AND hp.data_compra >= ?
+            GROUP BY hp.estabelecimento_id, e.nome
+            ORDER BY preco_minimo ASC
+            LIMIT 3
+        ";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$produtoNomeNormalizado, $cidade, $dataLimite]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    /**
+     * (Usado pelo 'PurchaseStartHandler' - Lista Inteligente)
+     * Encontra os preços para MÚLTIPLOS produtos de uma vez (otimizado).
      */
     public static function findPricesForListInCity(PDO $pdo, string $cidade, array $produtosNormalizados, int $dias = 30): array
     {
@@ -103,40 +94,39 @@ class HistoricoPreco {
             return [];
         }
 
-        $date = new DateTime();
-        $date->modify("-{$dias} days");
-        $dataCorte = $date->format('Y-m-d H:i:s');
-
-        // 1. Criar os placeholders (?) para a cláusula IN
-        // Para ['arroz', 'feijao'], isto cria "?,?"
+        $dataLimite = (new DateTime("-{$dias} days"))->format('Y-m-d');
+        
+        // Cria os placeholders (?) para a cláusula IN
         $placeholders = implode(',', array_fill(0, count($produtosNormalizados), '?'));
-
+        
+        // (Query complexa que busca o menor preço para cada produto)
         $sql = "
-            SELECT
-                i.produto_nome_normalizado,
-                e.id AS est_id,
-                e.nome AS estabelecimento_nome,
-                MIN(i.preco) AS preco_minimo
-            FROM itens_compra i
-            JOIN compras c ON i.compra_id = c.id
-            JOIN estabelecimentos e ON c.estabelecimento_id = e.id
-            WHERE 
-                e.cidade = ?
-              AND c.status = 'finalizada'
-              AND c.data_fim >= ?
-              AND i.produto_nome_normalizado IN ({$placeholders})
-            GROUP BY
-                e.id, e.nome, i.produto_nome_normalizado
+            WITH RankedPrices AS (
+                SELECT 
+                    hp.produto_nome_normalizado,
+                    hp.preco_unitario,
+                    hp.data_compra,
+                    e.nome as estabelecimento_nome,
+                    ROW_NUMBER() OVER(
+                        PARTITION BY hp.produto_nome_normalizado 
+                        ORDER BY hp.preco_unitario ASC, hp.data_compra DESC
+                    ) as rn
+                FROM historico_precos hp
+                JOIN estabelecimentos e ON hp.estabelecimento_id = e.id
+                WHERE e.cidade = ?
+                  AND hp.data_compra >= ?
+                  AND hp.produto_nome_normalizado IN ($placeholders)
+            )
+            SELECT 
+                produto_nome_normalizado,
+                preco_unitario as preco_minimo,
+                data_compra as data_mais_recente,
+                estabelecimento_nome
+            FROM RankedPrices
+            WHERE rn = 1
         ";
         
-        // 2. Preparar os parâmetros para o execute()
-        // Os parâmetros têm de estar na ordem correta:
-        // 1º a cidade, 2º a data, e DEPOIS a lista de produtos
-        $params = [$cidade, $dataCorte];
-        foreach ($produtosNormalizados as $produto) {
-            $params[] = $produto;
-        }
-
+        $params = array_merge([$cidade, $dataLimite], $produtosNormalizados);
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -144,57 +134,45 @@ class HistoricoPreco {
 
 
     /**
-     * (CORRIGIDO) Encontra os N produtos mais comprados por um usuário.
+     * (Usado pelo CRON 'verificar_alertas_preco')
+     * Encontra os N produtos mais comprados por um usuário.
      */
     public static function findFavoriteProductNames(PDO $pdo, int $usuario_id, int $limit = 5): array
     {
-        // --- (INÍCIO DA CORREÇÃO) ---
-        // Alterado de "LIMIT :limite" para "LIMIT ?"
         $sql = "
             SELECT 
-                i.produto_nome, 
-                i.produto_nome_normalizado, 
-                COUNT(i.id) as contagem
-            FROM itens_compra i
-            JOIN compras c ON i.compra_id = c.id
-            WHERE c.usuario_id = ?
-              AND c.status = 'finalizada'
-            GROUP BY i.produto_nome_normalizado, i.produto_nome
+                produto_nome,
+                produto_nome_normalizado, 
+                COUNT(*) as contagem
+            FROM historico_precos
+            WHERE usuario_id = ?
+            GROUP BY produto_nome, produto_nome_normalizado
             ORDER BY contagem DESC
-            LIMIT ? 
+            LIMIT ?
         ";
         $stmt = $pdo->prepare($sql);
-        
-        // Alterado bindValue(":limite") para bindValue(2)
-        $stmt->bindValue(1, $usuario_id, PDO::PARAM_INT);
-        $stmt->bindValue(2, $limit, PDO::PARAM_INT); 
-        // --- (FIM DA CORREÇÃO) ---
-        
-        $stmt->execute();
-        
+        $stmt->execute([$usuario_id, $limit]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
+     * (Usado pelo CRON 'verificar_alertas_preco')
      * Busca o último preço pago por UM usuário por UM produto.
      */
     public static function getUserLastPaidPrice(PDO $pdo, int $usuario_id, string $produtoNomeNormalizado): ?float
     {
         $sql = "
-            SELECT i.preco
-            FROM itens_compra i
-            JOIN compras c ON i.compra_id = c.id
-            WHERE c.usuario_id = ?
-              AND i.produto_nome_normalizado = ?
-              AND c.status = 'finalizada'
-            ORDER BY c.data_fim DESC
+            SELECT preco_unitario
+            FROM historico_precos
+            WHERE usuario_id = ? 
+              AND produto_nome_normalizado = ?
+            ORDER BY data_compra DESC
             LIMIT 1
         ";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$usuario_id, $produtoNomeNormalizado]);
-        $resultado = $stmt->fetchColumn();
-        
-        return $resultado !== false ? (float)$resultado : null;
+        $result = $stmt->fetch();
+        return $result ? (float)$result['preco_unitario'] : null;
     }
 }
 ?>

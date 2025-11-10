@@ -1,38 +1,45 @@
 <?php
 // ---
 // /app/Models/Compra.php
-// AGORA COM LÓGICA PARA "INÍCIO RÁPIDO" E PESQUISA DE PREÇO
 // ---
 
-// 1. (A CORREÇÃO) Garante que esta linha existe
+// 1. (A CORREÇÃO) Adiciona o Namespace
 namespace App\Models;
 
-// 2. (A CORREÇÃO) Adiciona as dependências que a classe usa
+// 2. (A CORREÇÃO) Adiciona as dependências
 use PDO;
 use App\Utils\StringUtils;
+use DateTime;
 
+// 3. (A CORREÇÃO) Garante que o nome da classe está correto
 class Compra {
     
     public int $id;
     public int $usuario_id;
     public int $estabelecimento_id;
+    public string $status; // 'ativa', 'finalizada', 'cancelada'
     public string $data_inicio;
     public ?string $data_fim;
-    public ?string $total_gasto;
-    public string $status;
-    public ?string $ultimo_item_em; 
+    public ?string $ultimo_item_em; // (Para o CRON de inatividade)
 
     private function __construct(array $data) {
         $this->id = (int)$data['id'];
         $this->usuario_id = (int)$data['usuario_id'];
         $this->estabelecimento_id = (int)$data['estabelecimento_id'];
+        $this->status = $data['status'];
         $this->data_inicio = $data['data_inicio'];
         $this->data_fim = $data['data_fim'];
-        $this->total_gasto = $data['total_gasto'];
-        $this->status = $data['status'];
-        $this->ultimo_item_em = $data['ultimo_item_em']; 
+        $this->ultimo_item_em = $data['ultimo_item_em'];
     }
 
+    /**
+     * Helper para criar um objeto Compra a partir de dados do PDO.
+     */
+    private static function fromData(array $data): Compra
+    {
+        return new Compra($data);
+    }
+    
     /**
      * Encontra uma compra pelo seu ID.
      */
@@ -40,8 +47,8 @@ class Compra {
     {
         $stmt = $pdo->prepare("SELECT * FROM compras WHERE id = ?");
         $stmt->execute([$id]);
-        $compraData = $stmt->fetch();
-        return $compraData ? new Compra($compraData) : null;
+        $data = $stmt->fetch();
+        return $data ? self::fromData($data) : null;
     }
 
     /**
@@ -49,45 +56,28 @@ class Compra {
      */
     public static function findActiveByUser(PDO $pdo, int $usuario_id): ?Compra 
     {
-        $stmt = $pdo->prepare(
-            "SELECT * FROM compras 
-             WHERE usuario_id = ? AND status = 'ativa' 
-             LIMIT 1"
-        );
+        $stmt = $pdo->prepare("SELECT * FROM compras WHERE usuario_id = ? AND status = 'ativa'");
         $stmt->execute([$usuario_id]);
-        $compraData = $stmt->fetch();
-        return $compraData ? new Compra($compraData) : null;
+        $data = $stmt->fetch();
+        return $data ? self::fromData($data) : null;
     }
 
     /**
-     * Encontra a última compra FINALIZADA de um usuário.
-     * (AGORA RETORNA A CIDADE E ESTADO)
-     *
-     * @param PDO $pdo
-     * @param int $usuario_id
-     * @return array|null Retorna dados do estabecimento, cidade e estado
+     * Encontra a última compra FINALIZADA de um usuário (para histórico de local).
      */
     public static function findLastCompletedByUser(PDO $pdo, int $usuario_id): ?array
     {
         $sql = "
-            SELECT 
-                c.estabelecimento_id,
-                e.nome AS estabelecimento_nome,
-                e.cidade,
-                e.estado
+            SELECT c.id, c.estabelecimento_id, e.nome as estabelecimento_nome, e.cidade, e.estado 
             FROM compras c
             JOIN estabelecimentos e ON c.estabelecimento_id = e.id
-            WHERE c.usuario_id = ?
-              AND c.status = 'finalizada'
+            WHERE c.usuario_id = ? AND c.status = 'finalizada'
             ORDER BY c.data_fim DESC
             LIMIT 1
         ";
-        
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$usuario_id]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        return $result !== false ? $result : null;
+        return $stmt->fetch(PDO::FETCH_ASSOC); // Retorna um array
     }
 
 
@@ -96,72 +86,103 @@ class Compra {
      */
     public static function create(PDO $pdo, int $usuario_id, int $estabelecimento_id): Compra
     {
-        $stmt = $pdo->prepare(
-            "INSERT INTO compras (usuario_id, estabelecimento_id, status, ultimo_item_em) 
-             VALUES (?, ?, 'ativa', CURRENT_TIMESTAMP)"
-        );
-        $stmt->execute([$usuario_id, $estabelecimento_id]);
+        $dataInicio = (new DateTime())->format('Y-m-d H:i:s');
         
+        $stmt = $pdo->prepare(
+            "INSERT INTO compras (usuario_id, estabelecimento_id, status, data_inicio, ultimo_item_em) 
+             VALUES (?, ?, 'ativa', ?, ?)"
+        );
+        $stmt->execute([$usuario_id, $estabelecimento_id, $dataInicio, $dataInicio]);
         $newId = (int)$pdo->lastInsertId();
-        return self::findById($pdo, $newId);
+        
+        // Retorna o objeto Compra recém-criado
+        return new Compra([
+            'id' => $newId,
+            'usuario_id' => $usuario_id,
+            'estabelecimento_id' => $estabelecimento_id,
+            'status' => 'ativa',
+            'data_inicio' => $dataInicio,
+            'data_fim' => null,
+            'ultimo_item_em' => $dataInicio
+        ]);
     }
 
 
     /**
-     * ADICIONA um novo item.
+     * ADICIONA um novo item a esta compra.
+     * Também atualiza o 'ultimo_item_em' da compra.
      */
     public function addItem(PDO $pdo, string $nome, string $qtdDesc, int $quantidade, float $precoPago, ?float $precoNormal = null): int
     {
+        // (Usa a classe StringUtils importada)
         $nomeNormalizado = StringUtils::normalize($nome);
         $emPromocao = ($precoNormal !== null && $precoNormal > $precoPago);
+        $precoUnitario = $precoPago / $quantidade;
 
-        $stmt = $pdo->prepare(
-            "INSERT INTO itens_compra (compra_id, produto_nome, produto_nome_normalizado, 
-             quantidade_desc, quantidade, preco, preco_normal, em_promocao)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        );
-        
-        $stmt->execute([
-            $this->id, $nome, $nomeNormalizado, $qtdDesc, $quantidade, 
-            $precoPago, $precoNormal, (int)$emPromocao 
-        ]);
-        $newItemId = (int)$pdo->lastInsertId();
-
-        $stmt = $pdo->prepare(
-            "UPDATE compras SET ultimo_item_em = CURRENT_TIMESTAMP WHERE id = ?"
-        );
-        $stmt->execute([$this->id]);
-        
-        return $newItemId;
+        $pdo->beginTransaction();
+        try {
+            // 1. Insere o item
+            $stmt = $pdo->prepare(
+                "INSERT INTO itens_compra 
+                    (compra_id, produto_nome, produto_nome_normalizado, quantidade_desc, quantidade, preco, preco_normal, em_promocao) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([
+                $this->id, $nome, $nomeNormalizado, $qtdDesc, $quantidade, $precoPago, $precoNormal, $emPromocao
+            ]);
+            $itemId = (int)$pdo->lastInsertId();
+            
+            // 2. Atualiza o "timestamp" da compra (para o CRON de inatividade)
+            $stmt = $pdo->prepare("UPDATE compras SET ultimo_item_em = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$this->id]);
+            
+            // 3. Atualiza o histórico de preços (tabela grande)
+            $stmt = $pdo->prepare(
+                "INSERT INTO historico_precos 
+                    (usuario_id, estabelecimento_id, compra_id, produto_nome, produto_nome_normalizado, preco_unitario, data_compra)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([
+                $this->usuario_id, $this->estabelecimento_id, $this->id, $nome, $nomeNormalizado, $precoUnitario, $this->data_inicio
+            ]);
+            
+            $pdo->commit();
+            return $itemId;
+            
+        } catch (\Exception $e) {
+            $pdo->rollBack();
+            // Lança a exceção para o BotController/Webhook apanhar
+            throw $e; 
+        }
     }
 
     /**
      * Finaliza esta compra.
+     * Retorna os totais e os itens para o relatório.
      */
     public function finalize(PDO $pdo): array
     {
-        $stmt = $pdo->prepare(
-            "SELECT produto_nome, produto_nome_normalizado, quantidade_desc, 
-             quantidade, preco, preco_normal, em_promocao 
-             FROM itens_compra 
-             WHERE compra_id = ?"
-        );
+        $dataFim = (new DateTime())->format('Y-m-d H:i:s');
+        
+        // 1. Atualiza o status da compra
+        $stmt = $pdo->prepare("UPDATE compras SET status = 'finalizada', data_fim = ? WHERE id = ?");
+        $stmt->execute([$dataFim, $this->id]);
+        $this->status = 'finalizada';
+        $this->data_fim = $dataFim;
+        
+        // 2. Busca todos os itens e o total
+        $stmt = $pdo->prepare("
+            SELECT *, (preco * quantidade) as preco_total
+            FROM itens_compra 
+            WHERE compra_id = ?
+        ");
         $stmt->execute([$this->id]);
         $itens = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        $totalGasto = 0.0;
+        
+        $totalGasto = 0;
         foreach ($itens as $item) {
-            $totalGasto += (float)$item['preco'] * (int)$item['quantidade'];
+            $totalGasto += (float)$item['preco_total'];
         }
-
-        $stmt = $pdo->prepare(
-            "UPDATE compras 
-             SET status = 'finalizada', 
-                 data_fim = CURRENT_TIMESTAMP, 
-                 total_gasto = ?
-             WHERE id = ?"
-        );
-        $stmt->execute([$totalGasto, $this->id]);
 
         return [
             'total' => $totalGasto,
@@ -169,3 +190,4 @@ class Compra {
         ];
     }
 }
+?>
