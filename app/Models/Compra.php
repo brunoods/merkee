@@ -1,7 +1,7 @@
 <?php
 // ---
 // /app/Models/Compra.php
-// (VERSÃO ATUALIZADA COM MÉTODOS DO DASHBOARD)
+// (VERSÃO ATUALIZADA COM CORREÇÃO DO 'findLastCompletedByUser')
 // ---
 
 namespace App\Models;
@@ -19,7 +19,6 @@ class Compra {
     public string $data_inicio;
     public ?string $data_fim;
     public ?string $ultimo_item_em;
-    // (Novas propriedades das colunas que adicionámos)
     public ?float $total_gasto;
     public ?float $total_poupado;
 
@@ -31,8 +30,8 @@ class Compra {
         $this->data_inicio = $data['data_inicio'];
         $this->data_fim = $data['data_fim'];
         $this->ultimo_item_em = $data['ultimo_item_em'];
-        $this->total_gasto = $data['total_gasto'] ?? null; // (Adicionado)
-        $this->total_poupado = $data['total_poupado'] ?? null; // (Adicionado)
+        $this->total_gasto = $data['total_gasto'] ?? null; 
+        $this->total_poupado = $data['total_poupado'] ?? null; 
     }
 
     /**
@@ -80,7 +79,12 @@ class Compra {
         ";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$usuario_id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC); 
+        
+        // --- (A CORREÇÃO ESTÁ AQUI) ---
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        // Se fetch() retornar false (nada encontrado), nós retornamos null
+        return $result === false ? null : $result;
+        // --- (FIM DA CORREÇÃO) ---
     }
 
 
@@ -119,7 +123,6 @@ class Compra {
     {
         $nomeNormalizado = StringUtils::normalize($nome); 
         $emPromocao = ($precoNormal !== null && $precoNormal > $precoPago);
-        // (Corrigido: preço unitário deve ser o preço pago a dividir pela quantidade)
         $precoUnitario = $precoPago / ($quantidade > 0 ? $quantidade : 1); 
 
         $pdo->beginTransaction();
@@ -130,7 +133,6 @@ class Compra {
                     (compra_id, produto_nome, produto_nome_normalizado, quantidade_desc, quantidade, preco, preco_normal, em_promocao) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             );
-            // (Corrigido: O 'preco' guardado deve ser o unitário)
             $stmt->execute([
                 $this->id, $nome, $nomeNormalizado, $qtdDesc, $quantidade, $precoUnitario, $precoNormal, $emPromocao
             ]);
@@ -161,7 +163,6 @@ class Compra {
 
     /**
      * Finaliza esta compra (APENAS MUDA O STATUS)
-     * (A lógica de cálculo foi movida para o CompraReportService)
      */
     public function finalize(PDO $pdo): array
     {
@@ -180,7 +181,7 @@ class Compra {
         $stmt->execute([$this->id]);
         $itens = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        return ['itens' => $itens]; // (Retorna apenas os itens)
+        return ['itens' => $itens];
     }
 
     /**
@@ -201,11 +202,8 @@ class Compra {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // --- (INÍCIO DAS NOVAS FUNÇÕES - A CORREÇÃO DO ERRO) ---
-
     /**
      * Encontra uma compra específica pelo seu ID e ID do usuário.
-     * (ESSENCIAL PARA SEGURANÇA DO DASHBOARD)
      */
     public static function findByIdAndUser(PDO $pdo, int $id, int $usuario_id): ?array
     {
@@ -220,7 +218,9 @@ class Compra {
         ";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$id, $usuario_id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC); // Retorna um array ou false
+        // (CORRIGIDO TAMBÉM)
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result === false ? null : $result;
     }
 
     /**
