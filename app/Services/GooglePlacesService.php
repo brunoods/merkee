@@ -12,7 +12,7 @@ class GooglePlacesService {
     
     private string $apiKey;
     private string $textSearchUrl = 'https://maps.googleapis.com/maps/api/place/findplacefromtext/json';
-    private string $nearbySearchUrl = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'; // (NOVO)
+    private string $nearbySearchUrl = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'; // (A função que faltava)
 
     public function __construct() {
         // (Lógica de carregar a API Key do .env está correta)
@@ -23,12 +23,8 @@ class GooglePlacesService {
     }
 
     /**
-     * (NOVO MÉTODO)
+     * (NOVO MÉTODO - A CORREÇÃO ESTÁ AQUI)
      * Busca supermercados próximos com base na latitude e longitude.
-     *
-     * @param float $latitude
-     * @param float $longitude
-     * @return array Lista de locais encontrados
      */
     public function buscarSupermercadosProximos(float $latitude, float $longitude): array
     {
@@ -97,7 +93,7 @@ class GooglePlacesService {
     }
     
     /**
-     * (NOVO HELPER)
+     * (NOVO HELPER - A CORREÇÃO ESTÁ AQUI)
      * Centraliza a lógica de fazer a chamada cURL
      */
     private function fazerRequestApi(string $url): array
