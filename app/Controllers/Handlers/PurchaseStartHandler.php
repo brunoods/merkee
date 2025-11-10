@@ -1,7 +1,7 @@
 <?php
 // ---
 // /app/Controllers/Handlers/PurchaseStartHandler.php
-// (VERSÃO CORRIGIDA - BUG DE SELEÇÃO DE MERCADO)
+// (VERSÃO 3 - CORREÇÃO DEFINITIVA DO BUG DE SELEÇÃO E SINTAXE)
 // ---
 
 namespace App\Controllers\Handlers;
@@ -13,7 +13,7 @@ use App\Models\ListaCompra;
 use App\Services\GooglePlacesService;
 use App\Utils\StringUtils;
 
-class PurchaseStartHandler extends BaseHandler { 
+class PurchaseStartHandler extends BaseHandler {
 
     public function process(string $estado, string $respostaUsuario, array $contexto): string
     {
@@ -45,7 +45,7 @@ class PurchaseStartHandler extends BaseHandler {
         if ($estado === 'aguardando_lista_para_iniciar') {
              return $this->handleEscolhaDeLista($respostaUsuario, $contexto);
         }
-                 
+                     
         $this->usuario->clearState($this->pdo);
         return "Opa! 🤔 Parece que me perdi no início da tua compra. Vamos recomeçar. Envia *iniciar compra* novamente.";
     }
@@ -82,17 +82,16 @@ class PurchaseStartHandler extends BaseHandler {
         $novoContexto = [];
         $opcoes = 1;
         
-        // --- (INÍCIO DA CORREÇÃO 1) ---
-        // Usamos $opcoes como a chave do array
+        // CORREÇÃO DE EXIBIÇÃO: Usamos $opcoes para a contagem visual (1, 2, 3...)
         foreach ($locais as $local) {
             $resposta .= "\n*$opcoes* - " . htmlspecialchars($local['nome_google']);
             $resposta .= "\n  _" . htmlspecialchars($local['endereco']) . "_";
-            $novoContexto[$opcoes] = $local; // $novoContexto[1] = local 1, $novoContexto[2] = local 2
+            // Armazenamos no array com chaves 0-based, pois o JSON as reindexa.
+            $novoContexto[] = $local; 
             $opcoes++;
         }
-        // --- (FIM DA CORREÇÃO 1) ---
         
-        $novoContexto['acao_manual'] = $opcoes;
+        $novoContexto['acao_manual'] = $opcoes; // O último número é a opção "Nenhum destes"
         $resposta .= "\n\n*$opcoes* - Nenhum destes (digitar nome)";
 
         $this->usuario->updateState($this->pdo, 'aguardando_local_google_confirmacao', $novoContexto);
@@ -123,15 +122,14 @@ class PurchaseStartHandler extends BaseHandler {
         $novoContexto = [];
         $opcoes = 1;
 
-        // --- (INÍCIO DA CORREÇÃO 2) ---
-        // Usamos $opcoes como a chave do array
+        // CORREÇÃO DE EXIBIÇÃO: Usamos $opcoes para a contagem visual (1, 2, 3...)
         foreach ($locais as $local) {
             $resposta .= "\n*$opcoes* - " . htmlspecialchars($local['nome_google']);
             $resposta .= "\n  _" . htmlspecialchars($local['endereco']) . "_";
-            $novoContexto[$opcoes] = $local; // $novoContexto[1] = local 1, etc.
+            // Armazenamos no array com chaves 0-based, pois o JSON as reindexa.
+            $novoContexto[] = $local; 
             $opcoes++;
         }
-        // --- (FIM DA CORREÇÃO 2) ---
         
         $novoContexto['acao_manual'] = $opcoes;
         $resposta .= "\n*$opcoes* - Nenhum destes (Registar manualmente)";
@@ -143,45 +141,52 @@ class PurchaseStartHandler extends BaseHandler {
 
     /**
      * PASSO 3 (Fluxo Comum): Utilizador confirma o local
+     * (CORREÇÃO DE ÍNDICE APLICADA AQUI)
      */
     private function handleLocalGoogleConfirmacao(string $respostaUsuario, array $contexto): string
     {
-         $escolha = trim($respostaUsuario);
-         
-         if (isset($contexto['acao_manual']) && $escolha == $contexto['acao_manual']) {
+        // $escolha é 1, 2, 3...
+        $escolha = (int) trim($respostaUsuario);
+        
+        // CORREÇÃO DE LÓGICA: Mapeia a escolha do utilizador (1-based) para o índice interno (0-based).
+        $indiceReal = $escolha - 1;
+
+        // 1. Lógica de "Nenhum destes"
+        if (isset($contexto['acao_manual']) && $escolha === (int)$contexto['acao_manual']) {
             $this->usuario->updateState($this->pdo, 'aguardando_local_manual_cidade', ['nome_mercado' => 'Manual']);
             return "Entendido. Qual o *nome* do mercado?";
-         }
-         
-         // (Agora $contexto[$escolha] vai encontrar a chave "2" corretamente)
-         if (is_numeric($escolha) && isset($contexto[$escolha])) {
-             $localEscolhido = $contexto[$escolha]; 
-             
-             $estabelecimento = Estabelecimento::findByPlaceId($this->pdo, $localEscolhido['place_id']);
-             
-             if (!$estabelecimento) {
-                 $endereco = $localEscolhido['endereco']; 
-                 $cidade = 'N/A';
-                 $estado = 'N/A';
-                 if (preg_match('/, ([\w\s]+) - (\w{2})/', $endereco, $matches) || preg_match('/([\w\s]+), (\w{2})/', $endereco, $matches)) {
-                     $cidade = trim($matches[1]);
-                     $estado = $matches[2];
-                 }
-                 
-                 $estabelecimento = Estabelecimento::createFromGoogle(
-                     $this->pdo, 
-                     $localEscolhido['place_id'], 
-                     $localEscolhido['nome_google'], 
-                     $cidade, 
-                     $estado
-                 );
-             }
-             
-             return $this->iniciarFluxoDeLista($estabelecimento);
-         }
-         
-         $this->usuario->clearState($this->pdo);
-         return "Não entendi a tua escolha. 😕 Vamos recomeçar. Envia *iniciar compra*.";
+        }
+            
+        // 2. Lógica de Seleção de Mercado (usa o índice corrigido)
+        if (is_numeric($escolha) && $indiceReal >= 0 && isset($contexto[$indiceReal])) {
+            $localEscolhido = $contexto[$indiceReal]; // <-- Acesso Corrigido!
+            
+            $estabelecimento = Estabelecimento::findByPlaceId($this->pdo, $localEscolhido['place_id']);
+            
+            if (!$estabelecimento) {
+                $endereco = $localEscolhido['endereco']; 
+                $cidade = 'N/A';
+                $estado = 'N/A';
+                // Tenta extrair (Ex: "Rua X, Mirassol - SP" ou "Mirassol, SP")
+                if (preg_match('/, ([\w\s]+) - (\w{2})/', $endereco, $matches) || preg_match('/([\w\s]+), (\w{2})/', $endereco, $matches)) {
+                    $cidade = trim($matches[1]);
+                    $estado = $matches[2];
+                }
+                
+                $estabelecimento = Estabelecimento::createFromGoogle(
+                    $this->pdo, 
+                    $localEscolhido['place_id'], 
+                    $localEscolhido['nome_google'], 
+                    $cidade, 
+                    $estado
+                );
+            }
+            
+            return $this->iniciarFluxoDeLista($estabelecimento);
+        }
+        
+        $this->usuario->clearState($this->pdo);
+        return "Não entendi a tua escolha. 😕 Vamos recomeçar. Envia *iniciar compra*.";
     }
 
     /**
@@ -209,7 +214,7 @@ class PurchaseStartHandler extends BaseHandler {
     private function handleLocalManualEstado(string $respostaUsuario, array $contexto): string
     {
         $cidade = trim(strip_tags($respostaUsuario));
-         if (empty($cidade) || strlen($cidade) > 50) {
+        if (empty($cidade) || strlen($cidade) > 50) {
             $this->usuario->updateState($this->pdo, 'aguardando_local_manual_estado', $contexto);
             return "Por favor, envia um nome de cidade válido.";
         }
@@ -315,4 +320,3 @@ class PurchaseStartHandler extends BaseHandler {
         return $resposta;
     }
 }
-?>

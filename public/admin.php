@@ -1,5 +1,5 @@
 <?php
-// --- ADMIN.PHP (v7 UI REFINADA) ---
+// --- ADMIN.PHP (v8 DARK THEME & RESPONSIVO) ---
 
 require_once __DIR__ . '/../config/bootstrap.php';
 session_start();
@@ -115,73 +115,116 @@ try {
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Walletly Admin</title>
+<title>Merkee Admin</title>
 <style>
-/* === Estilos Modernos Refinados === */
+/* === Dark Theme & Responsivo UI/UX Nível 10 === */
 :root {
-  --bg:#f8fafc;--bg-card:#fff;--text:#1e293b;--accent:#3b82f6;
-  --accent-light:#e0f2fe;--success:#22c55e;--danger:#ef4444;
-  --warning:#f59e0b;--border:#e2e8f0;--muted:#64748b;
-  font-family:"Inter",system-ui,sans-serif;
+  --cor-fundo: #121212;
+  --cor-fundo-card: #1f1f1f;
+  --cor-texto-principal: #f0f0f0;
+  --cor-texto-secundaria: #a0a0a0;
+  --cor-principal: #0a9396; /* Azul Água (Accent) */
+  --cor-sucesso: #90ee90; 
+  --cor-alerta: #ff6b6b; 
+  --cor-borda: #444444;
+  --cor-hover: #3c3c3c;
+  --cor-feedback-success-bg: #1e3a2d;
+  --cor-feedback-error-bg: #442222;
 }
-@media (prefers-color-scheme:dark){
-  :root{--bg:#0f172a;--bg-card:#1e293b;--text:#f1f5f9;--accent:#60a5fa;
-  --accent-light:#1e3a8a;--border:#334155;--muted:#94a3b8;}
-}
-body{background:var(--bg);color:var(--text);margin:0;}
-header{background:var(--bg-card);border-bottom:1px solid var(--border);
-position:sticky;top:0;z-index:50;padding:16px 30px;display:flex;align-items:center;justify-content:space-between;}
-header h1{margin:0;font-size:20px;color:var(--accent);}
-header a.logout{color:var(--danger);text-decoration:none;font-weight:600;}
+body{background:var(--cor-fundo);color:var(--cor-texto-principal);margin:0;font-family:"Inter",system-ui,sans-serif;}
+a{text-decoration:none;color:var(--cor-principal);}
+h2{color:var(--cor-texto-principal);font-weight:600;font-size:22px;margin:20px 0 15px 0;border-left:4px solid var(--cor-principal);padding-left:10px;}
+header{background:var(--cor-fundo-card);border-bottom:1px solid var(--cor-borda);
+position:sticky;top:0;z-index:50;padding:16px 30px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.5);}
+header h1{margin:0;font-size:24px;color:var(--cor-principal);}
+header a.logout{color:var(--cor-alerta);text-decoration:none;font-weight:600;padding:5px 10px;border-radius:6px;transition:.2s;}
+header a.logout:hover{background:var(--cor-alerta);color:var(--cor-fundo-card);}
+
 .container{max-width:1200px;margin:30px auto;padding:0 20px;}
-.feedback{margin:15px 0;padding:10px 14px;border-radius:6px;}
-.feedback:not(.error){background:#dcfce7;color:#166534;}
-.feedback.error{background:#fee2e2;color:#991b1b;}
+.feedback{margin:15px 0;padding:12px 16px;border-radius:6px;font-weight:500;}
+.feedback:not(.error){background:var(--cor-feedback-success-bg);color:var(--cor-sucesso);border:1px solid var(--cor-sucesso);}
+.feedback.error{background:var(--cor-feedback-error-bg);color:var(--cor-alerta);border:1px solid var(--cor-alerta);}
+
+/* DASHBOARD CARDS */
 .dashboard{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:30px;}
-.dash-card{flex:1 1 calc(33.3% - 16px);min-width:220px;background:var(--accent-light);
-border-left:5px solid var(--accent);border-radius:10px;padding:16px 20px;
-transition:.2s;box-shadow:0 2px 6px rgba(0,0,0,0.05);}
-.dash-card:hover{transform:translateY(-3px);}
-.dash-card h3{margin:0;font-size:14px;opacity:.8;}
-.dash-card p{margin:5px 0 0;font-size:26px;font-weight:600;color:var(--accent);}
+.dash-card{flex:1 1 calc(33.3% - 16px);min-width:220px;background:#252525;
+border-left:5px solid var(--cor-principal);border-radius:10px;padding:16px 20px;
+transition:.2s;box-shadow:0 4px 8px rgba(0,0,0,0.5);}
+.dash-card:hover{transform:translateY(-3px);box-shadow:0 6px 12px rgba(0,0,0,0.7);}
+.dash-card h3{margin:0;font-size:14px;color:var(--cor-texto-secundaria);}
+.dash-card p{margin:5px 0 0;font-size:28px;font-weight:700;color:var(--cor-principal);}
+
+/* SEARCH BOX */
 .search-box{margin:20px 0;position:relative;}
-.search-box input{width:100%;max-width:340px;padding:10px 10px 10px 36px;
-border:1px solid var(--border);border-radius:8px;}
-.search-box::before{content:"🔍";position:absolute;left:12px;top:9px;font-size:16px;opacity:.6;}
-table{width:100%;border-collapse:collapse;border:1px solid var(--border);
-border-radius:8px;overflow:hidden;font-size:14px;}
-th,td{padding:12px;border-bottom:1px solid var(--border);}
-th{background:var(--accent-light);text-align:left;}
-tr:nth-child(even){background:rgba(0,0,0,0.02);}
-tr:hover{background:var(--accent-light);}
-.acao-link{padding:6px 10px;border-radius:6px;font-weight:500;text-decoration:none;transition:background .2s;margin:2px;display:inline-block;}
-.editar{background:var(--accent);color:#fff;}
-.editar:hover{background:#2563eb;}
-.detalhes{background:var(--warning);color:#fff;}
-.revogar{background:var(--danger);color:#fff;}
-.status-ativo{color:var(--success);font-weight:bold;}
-.status-expirado{color:var(--danger);font-weight:bold;}
-.status-inativo{color:var(--muted);}
-.acoes-tempo{margin-top:8px;font-size:13px;}
-.acoes-tempo a{display:inline-block;margin:0 2px;padding:4px 8px;
-border-radius:999px;background:var(--accent-light);color:var(--accent);
-border:1px solid var(--border);transition:.2s;}
-.acoes-tempo a:hover{background:var(--accent);color:#fff;}
+.search-box input{width:100%;max-width:400px;padding:10px 10px 10px 36px;
+border:1px solid var(--cor-borda);border-radius:8px;background:var(--cor-fundo-card);color:var(--cor-texto-principal);transition:.2s;}
+.search-box input::placeholder{color:var(--cor-texto-secundaria);}
+.search-box::before{content:"🔍";position:absolute;left:12px;top:11px;font-size:16px;opacity:.8;color:var(--cor-texto-secundaria);}
+.search-box input:focus{border-color:var(--cor-principal);box-shadow:0 0 0 2px rgba(10, 147, 150, 0.3);}
+
+/* TABELA */
+.table-wrapper{overflow-x:auto;margin-top:15px;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,0.5);}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:700px;}
+th,td{padding:12px;border-bottom:1px solid var(--cor-borda);text-align:left;}
+th{background:#252525;color:var(--cor-principal);font-weight:600;border-bottom:2px solid var(--cor-principal);}
+tr:nth-child(even){background:#222222;}
+tr:hover{background:var(--cor-hover);}
+
+/* AÇÕES */
+.acao-link{padding:6px 10px;border-radius:6px;font-weight:500;text-decoration:none;transition:background .2s;margin:2px;display:inline-block;font-size:13px;}
+.editar{background:var(--cor-principal);color:var(--cor-fundo-card);border:1px solid var(--cor-principal);}
+.editar:hover{background:#077e81;}
+.detalhes{background:#3b3b3b;color:var(--cor-texto-principal);border:1px solid #555;}
+.detalhes:hover{background:#555;}
+.revogar{background:var(--cor-alerta);color:var(--cor-fundo-card);border:1px solid var(--cor-alerta);}
+.revogar:hover{background:#d83c3c;}
+
+.status-ativo{color:var(--cor-sucesso);font-weight:bold;}
+.status-expirado{color:var(--cor-alerta);font-weight:bold;}
+.status-inativo{color:var(--cor-texto-secundaria);}
+
+.acoes-tempo{margin-top:8px;font-size:13px;display:flex;align-items:center;gap:5px;}
+.acoes-tempo span{color:var(--cor-texto-secundaria);}
+.acoes-tempo a{display:inline-block;padding:4px 8px;border-radius:999px;
+background:var(--cor-fundo-card);color:var(--cor-principal);border:1px solid var(--cor-borda);transition:.2s;}
+.acoes-tempo a:hover{background:var(--cor-principal);color:var(--cor-fundo-card);border-color:var(--cor-principal);}
+
+/* MODAL */
 .modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;
-backdrop-filter:blur(4px);background:rgba(0,0,0,0.3);}
-.modal-content{background:var(--bg-card);margin:10% auto;padding:25px;border-radius:10px;
-width:90%;max-width:500px;box-shadow:0 6px 20px rgba(0,0,0,0.2);}
-.modal-close{float:right;font-size:22px;cursor:pointer;color:var(--danger);}
-.btn{padding:10px 15px;border:none;border-radius:6px;cursor:pointer;color:#fff;}
-.btn-primary{background:var(--accent);}
-.login-form{max-width:400px;margin:120px auto;background:var(--bg-card);
-border-radius:10px;padding:30px;text-align:center;border:1px solid var(--border);}
+backdrop-filter:blur(4px);background:rgba(0,0,0,0.7);}
+.modal-content{background:var(--cor-fundo-card);margin:10% auto;padding:25px;border-radius:10px;
+width:90%;max-width:500px;box-shadow:0 8px 30px rgba(0,0,0,0.9);border-top:4px solid var(--cor-principal);}
+.modal-close{float:right;font-size:28px;cursor:pointer;color:var(--cor-alerta);transition:.2s;}
+.modal-close:hover{color:var(--cor-principal);}
+
+.modal-content input, .modal-content textarea{
+    background: #252525; border: 1px solid var(--cor-borda); color: var(--cor-texto-principal); margin-bottom: 10px; border-radius: 4px; padding: 8px;
+}
+.modal-content label{display:block;margin-top:10px;font-size:14px;color:var(--cor-texto-secundaria);}
+.btn-primary{background:var(--cor-principal);color:var(--cor-fundo-card);padding:10px 15px;border:none;border-radius:6px;cursor:pointer;font-weight:600;margin-top:10px;}
+.btn-primary:hover{background:#077e81;}
+
+/* LOGIN FORM */
+.login-form{max-width:400px;margin:120px auto;background:var(--cor-fundo-card);
+border-radius:10px;padding:30px;text-align:center;border:1px solid var(--cor-borda);box-shadow:0 4px 15px rgba(0,0,0,0.7);}
+.login-form input{background:#252525;color:var(--cor-texto-principal);}
+
+/* RESPONSIVIDADE */
+@media (max-width: 768px) {
+    header { padding: 10px 15px; }
+    header h1 { font-size: 20px; }
+    .container { padding: 0 10px; margin-top: 20px; }
+    .dashboard { flex-direction: column; }
+    .dash-card { min-width: 100%; }
+    h2 { font-size: 20px; }
+    .modal-content { margin: 20% auto; }
+}
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Walletly Admin</h1>
+  <h1>Merkee Admin</h1>
   <?php if(isset($_SESSION['admin_logado']) && $_SESSION['admin_logado']===true): ?>
   <a href="?acao=logout" class="logout">Sair</a>
   <?php endif; ?>
@@ -196,19 +239,25 @@ border-radius:10px;padding:30px;text-align:center;border:1px solid var(--border)
 
 <?php if($acao==='detalhes'&&$usuario_para_detalhes): ?>
 <h2><a href="?acao=dashboard" class="acao-link detalhes">&larr; Voltar</a> Detalhes do Utilizador</h2>
-<div class="dash-card"><h3><?php echo htmlspecialchars($usuario_para_detalhes['nome']); ?></h3>
-<p>ID <?php echo $usuario_para_detalhes['id']; ?><br>
-WhatsApp: <?php echo htmlspecialchars($usuario_para_detalhes['whatsapp_id']); ?><br>
-Desde: <?php echo (new DateTime($usuario_para_detalhes['criado_em']))->format('d/m/Y'); ?><br>
-Obs: <?php echo htmlspecialchars($usuario_para_detalhes['observacoes']); ?></p></div>
+<div class="dash-card">
+    <h3>Informações do Utilizador</h3>
+    <p style="font-size:16px;">
+        Nome: <?php echo htmlspecialchars($usuario_para_detalhes['nome']); ?><br>
+        ID: <?php echo $usuario_para_detalhes['id']; ?><br>
+        WhatsApp: <?php echo htmlspecialchars($usuario_para_detalhes['whatsapp_id']); ?><br>
+        Desde: <?php echo (new DateTime($usuario_para_detalhes['criado_em']))->format('d/m/Y'); ?><br>
+        Observações: <?php echo htmlspecialchars($usuario_para_detalhes['observacoes']); ?>
+    </p>
+</div>
+<h2 style="margin-top:30px;">Estatísticas de Atividade</h2>
 <div class="dashboard">
-<div class="dash-card"><h3>Compras</h3><p><?php echo $user_dashboard_stats['total_compras']; ?></p></div>
-<div class="dash-card"><h3>Valor Gasto</h3><p>R$ <?php echo number_format($user_dashboard_stats['total_gasto'],2,',','.'); ?></p></div>
-<div class="dash-card"><h3>Poupança</h3><p>R$ <?php echo number_format($user_dashboard_stats['total_poupanca'],2,',','.'); ?></p></div>
+    <div class="dash-card"><h3>Compras Registadas</h3><p><?php echo $user_dashboard_stats['total_compras']; ?></p></div>
+    <div class="dash-card"><h3>Valor Gasto</h3><p>R$ <?php echo number_format($user_dashboard_stats['total_gasto'],2,',','.'); ?></p></div>
+    <div class="dash-card"><h3>Poupança Total</h3><p>R$ <?php echo number_format($user_dashboard_stats['total_poupanca'],2,',','.'); ?></p></div>
 </div>
 
 <?php else: ?>
-<h2>Visão Geral</h2>
+<h2>Visão Geral do Sistema</h2>
 <div class="dashboard">
 <div class="dash-card"><h3>Total Utilizadores</h3><p><?php echo $dashboard_stats['total_users']; ?></p></div>
 <div class="dash-card"><h3>Ativos</h3><p><?php echo $dashboard_stats['active_users']; ?></p></div>
@@ -218,10 +267,11 @@ Obs: <?php echo htmlspecialchars($usuario_para_detalhes['observacoes']); ?></p><
 <div class="dash-card"><h3>Poupança Global</h3><p>R$ <?php echo number_format($dashboard_stats['total_poupanca'],2,',','.'); ?></p></div>
 </div>
 
-<h2>Utilizadores</h2>
+<h2>Gestão de Utilizadores</h2>
 <div class="search-box">
 <input type="text" id="searchInput" onkeyup="filtrarTabela()" placeholder="Pesquisar por nome ou WhatsApp...">
 </div>
+<div class="table-wrapper">
 <table id="userTable">
 <thead><tr><th>ID</th><th>Nome</th><th>WhatsApp</th><th>Status</th><th>Desde</th><th>Obs</th><th>Ações</th></tr></thead>
 <tbody>
@@ -241,7 +291,7 @@ else{ $status='Inativo'; $cls='status-inativo'; }
 <td>
 <span class="acao-link editar btn-edit" data-id="<?php echo $u['id']; ?>" data-nome="<?php echo htmlspecialchars($u['nome']); ?>" data-whatsapp="<?php echo htmlspecialchars($u['whatsapp_id']); ?>" data-observacoes="<?php echo htmlspecialchars($u['observacoes']); ?>">Editar</span>
 <a href="?acao=detalhes&id=<?php echo $u['id']; ?>" class="acao-link detalhes">Detalhes</a>
-<a href="?revogar=<?php echo $u['id']; ?>" class="acao-link revogar" onclick="return confirm('Revogar subscrição?');">Revogar</a>
+<a href="?revogar=<?php echo $u['id']; ?>" class="acao-link revogar" onclick="return confirm('Tem certeza que deseja revogar a subscrição deste utilizador?');">Revogar</a>
 <div class="acoes-tempo">
 <span>Extender:</span>
 <a href="?add_tempo=<?php echo $u['id']; ?>&dias=7" onclick="return confirm('Adicionar 7 dias?');">+7d</a>
@@ -252,14 +302,15 @@ else{ $status='Inativo'; $cls='status-inativo'; }
 </tr>
 <?php endforeach; ?>
 </tbody></table>
+</div>
 <?php endif; ?>
 
 <?php else: ?>
 <form action="admin.php" method="POST" class="login-form">
 <h2>Login Admin</h2>
 <?php if($feedback): ?><div class="feedback error"><?php echo htmlspecialchars($feedback); ?></div><?php endif; ?>
-<input type="password" name="senha" placeholder="Senha" required style="width:100%;padding:10px;margin:10px 0;border:1px solid var(--border);border-radius:6px;">
-<button type="submit" class="btn btn-primary">Entrar</button>
+<input type="password" name="senha" placeholder="Senha" required style="width:100%;padding:10px;margin:10px 0;border:1px solid var(--cor-borda);border-radius:6px;background:#252525;color:var(--cor-texto-principal);">
+<button type="submit" class="btn btn-primary btn-full-width" style="width:100%;" >Entrar</button>
 </form>
 <?php endif; ?>
 </div>
@@ -271,10 +322,10 @@ else{ $status='Inativo'; $cls='status-inativo'; }
 <form action="admin.php?acao=dashboard" method="POST">
 <input type="hidden" name="acao_form" value="salvar_usuario">
 <input type="hidden" name="id_usuario_modal" id="form-id">
-<label>Nome</label><input type="text" id="form-nome" name="nome_modal" style="width:100%;padding:8px;"><br>
-<label>WhatsApp</label><input type="text" id="form-whatsapp" name="whatsapp_id_modal" style="width:100%;padding:8px;"><br>
-<label>Observações</label><textarea id="form-observacoes" name="observacoes_modal" style="width:100%;padding:8px;"></textarea><br>
-<button type="submit" class="btn btn-primary">Salvar</button>
+<label>Nome</label><input type="text" id="form-nome" name="nome_modal" style="width:100%;"><br>
+<label>WhatsApp ID</label><input type="text" id="form-whatsapp" name="whatsapp_id_modal" style="width:100%;"><br>
+<label>Observações</label><textarea id="form-observacoes" name="observacoes_modal" style="width:100%;height:80px;"></textarea><br>
+<button type="submit" class="btn btn-primary" style="width:100%;">Salvar</button>
 </form>
 </div></div>
 
