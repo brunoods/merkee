@@ -1,0 +1,162 @@
+[2025-11-09 17:03:02] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:03:02] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:04:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:04:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:05:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:05:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:06:02] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:06:02] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:07:02] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:07:02] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:08:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:08:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:09:02] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:09:02] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:10:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:10:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:11:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:11:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:12:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:12:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:15:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:15:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:30:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:30:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 17:45:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 17:45:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 18:00:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 18:00:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 18:15:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 18:15:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 18:30:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 18:30:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 18:45:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 18:45:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 19:00:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 19:00:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 19:15:07] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 19:15:07] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 19:30:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 19:30:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 19:45:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 19:45:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 20:00:07] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 20:00:07] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 20:30:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 20:30:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 20:45:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 20:45:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 21:00:08] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 21:00:08] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 21:15:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 21:15:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 21:30:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 21:30:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 21:45:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 21:45:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 22:00:08] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 22:00:08] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 22:15:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 22:15:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 22:30:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 22:30:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 22:45:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 22:45:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 23:00:08] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 23:00:08] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 23:15:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 23:15:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 23:30:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 23:30:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-09 23:45:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-09 23:45:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 00:00:08] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 00:00:08] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 00:15:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 00:15:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 00:30:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 00:30:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 00:45:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 00:45:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 01:00:08] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 01:00:08] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 01:15:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 01:15:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 01:30:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 01:30:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 01:45:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 01:45:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 02:00:07] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 02:00:07] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 02:15:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 02:15:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 02:30:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 02:30:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 02:45:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 02:45:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 03:00:07] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 03:00:07] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 03:15:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 03:15:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 03:45:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 03:45:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 04:00:07] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 04:00:07] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 04:15:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 04:15:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 04:30:07] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 04:30:07] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 04:45:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 04:45:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 05:00:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 05:00:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 05:15:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 05:15:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 05:30:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 05:30:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 05:45:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 05:45:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 06:00:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 06:00:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 06:15:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 06:15:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 06:30:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 06:30:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 06:45:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 06:45:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 07:00:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 07:00:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 07:15:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 07:15:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 07:30:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 07:30:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 07:45:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 07:45:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 08:00:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 08:00:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 08:15:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 08:15:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 08:30:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 08:30:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 08:45:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 08:45:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 09:00:07] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 09:00:07] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 09:15:03] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 09:15:03] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 09:30:07] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 09:30:07] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 09:45:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 09:45:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 10:00:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 10:00:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 10:30:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 10:30:04] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 10:45:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 10:45:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 11:00:04] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 11:00:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 11:15:06] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 11:15:06] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.
+[2025-11-10 12:00:05] (CRON_JOB) --- CRON JOB INICIADO: Verificar compras inivas ---
+[2025-11-10 12:00:05] (CRON_JOB) Nenhuma compra inativa encontrada. A sair.

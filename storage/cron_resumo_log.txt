@@ -1,0 +1,5 @@
+[2025-11-09 17:35:07] (CRON_RESUMO) --- CRON RESUMO SEMANAL INICIADO ---
+[2025-11-09 17:35:07] (CRON_RESUMO) A verificar resumos para 1 usuários...
+[2025-11-09 17:35:07] (CRON_RESUMO) API: Mensagem enviada para 5517996606436 (HTTP 200)
+[2025-11-09 17:35:07] (CRON_RESUMO) ... Mensagem de resumo enviada para Usuário #1 (Poupou R$ 2,50)
+[2025-11-09 17:35:07] (CRON_RESUMO) --- CRON RESUMO FINALIZADO ---
