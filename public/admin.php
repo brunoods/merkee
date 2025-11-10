@@ -11,16 +11,17 @@ require_once __DIR__ . '/../config/bootstrap.php';
 session_start();
 
 // --- Funções de Login/Logout (Modificadas para HASH) ---
+// --- (Dentro de merkee/public/admin.php) ---
+
 function login() {
     if (!empty($_POST['senha'])) {
         
-        // --- (CORREÇÃO 1) ---
-        // Lê o HASH correto do .env
-        $hashCorreto = getenv('ADMIN_PASSWORD_HASH'); // (Estava 'ADMIN_PASSWORD')
-        // --- (FIM DA CORREÇÃO 1) ---
+        // --- (A CORREÇÃO ESTÁ AQUI) ---
+        // Tenta ler do $_ENV primeiro (para evitar cache) e depois do getenv()
+        $hashCorreto = $_ENV['ADMIN_PASSWORD_HASH'] ?? getenv('ADMIN_PASSWORD_HASH');
         
         if (empty($hashCorreto)) {
-            return "Erro de configuração: ADMIN_PASSWORD_HASH não definido no .env";
+            return "Erro de configuração: ADMIN_PASSWORD_HASH não definido no .env (ou o cache precisa de ser limpo)";
         }
 
         // Verifica a senha enviada contra o hash
@@ -34,6 +35,7 @@ function login() {
     }
     return null;
 }
+
 function logout() {
     unset($_SESSION['admin_logado']);
     header("Location: admin.php");
@@ -410,7 +412,7 @@ try {
                 
                 <div class="form-group">
                     <label for="senha">Senha</label>
-                    <input type="password" name="senha" id="senha" required>
+                   <input type="password" name="senha" id="senha" required autocomplete="current-password">
                 </div>
                 <button type="submit" class="btn btn-primary">Entrar</button>
             </form>

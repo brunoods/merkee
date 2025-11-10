@@ -22,12 +22,20 @@ function getDbConnection(): PDO
 {
     global $pdo;
     if ($pdo === null) {
-        // Lê as variáveis carregadas do .env
-        $host = getenv('DB_HOST');
-        $db   = getenv('DB_NAME');
-        $user = getenv('DB_USER');
-        $pass = getenv('DB_PASS');
+        
+        // --- (A CORREÇÃO ESTÁ AQUI) ---
+        // Lemos do $_ENV primeiro para contornar o cache do servidor
+        $host = $_ENV['DB_HOST'] ?? getenv('DB_HOST');
+        $db   = $_ENV['DB_NAME'] ?? getenv('DB_NAME');
+        $user = $_ENV['DB_USER'] ?? getenv('DB_USER');
+        $pass = $_ENV['DB_PASS'] ?? getenv('DB_PASS');
+        // --- (FIM DA CORREÇÃO) ---
+        
         $charset = 'utf8mb4';
+
+        if (empty($host) || empty($db) || empty($user)) {
+             throw new \PDOException("Erro Crítico: Configurações da base de dados (DB_HOST, DB_NAME, DB_USER) não definidas ou não lidas do .env");
+        }
 
         $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
         $options = [
@@ -39,6 +47,7 @@ function getDbConnection(): PDO
         try {
             $pdo = new PDO($dsn, $user, $pass, $options);
         } catch (\PDOException $e) {
+            // Lança a exceção para que o script principal (admin.php) a possa apanhar
             throw new \PDOException($e->getMessage(), (int)$e->getCode());
         }
     }
@@ -52,8 +61,3 @@ function writeToLog(string $logFilePath, string $message, string $logPrefix) {
     $logEntry = "[" . date('Y-m-d H:i:s') . "] ($logPrefix) " . $message . PHP_EOL;
     file_put_contents($logFilePath, $logEntry, FILE_APPEND);
 }
-
-// 5. Eliminar os ficheiros antigos
-// Agora, pode apagar com segurança:
-// - merkee/config/db.php
-// - merkee/config/api_keys.php
