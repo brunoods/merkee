@@ -22,7 +22,8 @@ class WhatsAppService {
         // --- (FIM DA CORREÇÃO) ---
 
         if (empty($this->apiUrl) || empty($this->clientToken)) {
-            throw new Exception("WHATSAPP_API_URL ou WHATSAPP_CLIENT_TOKEN não definidos no .env");
+            // (Esta exceção será agora apanhada pelo webhook.php e logada)
+            throw new Exception("WHATSAPP_API_URL ou WHATSAPP_CLIENT_TOKEN não definidos no .env (ou cache do servidor)");
         }
     }
 
@@ -56,6 +57,7 @@ class WhatsAppService {
         curl_close($ch);
 
         if ($httpCode < 200 || $httpCode >= 300) {
+            // (Esta exceção será apanhada pelo webhook.php e logada)
             throw new Exception(
                 "Falha na API do WhatsApp. HTTP $httpCode. Resposta: $response. Erro cURL: $curlError"
             );
