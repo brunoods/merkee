@@ -1,0 +1,16 @@
+# --- merkee/public/.htaccess (Ficheiro interno da Aplicação) ---
+
+# ESSENCIAL: Define o ficheiro index padrão.
+DirectoryIndex index.php
+
+# 1. Permite a reescrita (caso AllowOverride esteja definido)
+RewriteEngine On
+
+# 2. Impedir o acesso a ficheiros ocultos (boa prática de segurança)
+RewriteRule "^\." - [F]
+
+# 3. Forçar o acesso ao ficheiro .php mesmo que o utilizador não o especifique
+# (Ex: /dashboard -> /dashboard.php)
+# Esta regra é opcional, mas garante que os links funcionam mesmo sem a extensão.
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^([^\.]+)$ $1.php [L]
