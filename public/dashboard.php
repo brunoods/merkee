@@ -58,6 +58,10 @@ try {
         
         .empty-state { background: #fff; padding: 40px; text-align: center; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .error-box { background: #f2dede; border: 1px solid #ebccd1; color: #a94442; padding: 15px; border-radius: 8px; }
+
+        .clickable-row { cursor: pointer; }
+        .clickable-row:hover { background-color: #f5f5f5; }
+        .clickable-row a { text-decoration: none; color: #005f73; font-weight: 500; }
     </style>
 </head>
 <body>
@@ -96,8 +100,12 @@ try {
                     </thead>
                     <tbody>
                         <?php foreach ($compras as $compra): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($compra['estabelecimento_nome']); ?></td>
+                            <tr class="clickable-row" data-href="detalhe_compra.php?id=<?php echo $compra['id']; ?>">
+                                <td>
+                                    <a href="detalhe_compra.php?id=<?php echo $compra['id']; ?>">
+                                        <?php echo htmlspecialchars($compra['estabelecimento_nome']); ?>
+                                    </a>
+                                </td>
                                 <td class="col-data"><?php echo (new DateTime($compra['data_fim']))->format('d/m/Y'); ?></td>
                                 <td class="col-valor">R$ <?php echo number_format($compra['total_gasto'], 2, ',', '.'); ?></td>
                                 <td class="col-poupanca">R$ <?php echo number_format($compra['total_poupado'], 2, ',', '.'); ?></td>
@@ -109,5 +117,17 @@ try {
             <?php endif; ?>
             </div>
     </div>
+
+    <script>
+document.addEventListener("DOMContentLoaded", function() {
+    const rows = document.querySelectorAll("tr.clickable-row");
+    rows.forEach(row => {
+        row.addEventListener("click", () => {
+            window.location.href = row.dataset.href;
+        });
+    });
+});
+</script>
+
 </body>
 </html>

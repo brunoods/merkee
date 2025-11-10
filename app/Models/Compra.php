@@ -206,5 +206,39 @@ class Compra {
         $stmt->execute([$usuario_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+    /**
+     * Encontra uma compra específica pelo seu ID e ID do usuário.
+     * (ESSENCIAL PARA SEGURANÇA DO DASHBOARD)
+     */
+    public static function findByIdAndUser(PDO $pdo, int $id, int $usuario_id): ?array
+    {
+        $sql = "
+            SELECT c.id, c.data_fim, c.total_gasto, c.total_poupado, e.nome as estabelecimento_nome
+            FROM compras c
+            JOIN estabelecimentos e ON c.estabelecimento_id = e.id
+            WHERE c.id = ? 
+              AND c.usuario_id = ? 
+              AND c.status = 'finalizada'
+            LIMIT 1
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$id, $usuario_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC); // Retorna um array ou false
+    }
+
+    /**
+     * Busca todos os itens de uma compra específica.
+     */
+    public static function findItemsByCompraId(PDO $pdo, int $compra_id): array
+    {
+        $stmt = $pdo->prepare("
+            SELECT produto_nome, quantidade_desc, quantidade, preco, preco_normal, em_promocao
+            FROM itens_compra 
+            WHERE compra_id = ?
+            ORDER BY id ASC
+        ");
+        $stmt->execute([$compra_id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }
 ?>
