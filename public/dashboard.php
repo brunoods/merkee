@@ -37,7 +37,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Painel - Merkee</title>
+    <title>Meu Painel - WalletlyBot</title>
     <style>
         /* Paleta de Cores Dark Theme */
         :root {
@@ -175,7 +175,7 @@ try {
 <body>
     <div class="container">
         <header>
-            <h1>Merkee Dashboard 📊</h1>
+            <h1>WalletlyBot Dashboard 📊</h1>
             <a href="logout.php">Sair</a>
         </header>
         

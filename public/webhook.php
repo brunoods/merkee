@@ -124,7 +124,7 @@ try {
 
     if ($is_valido == false) {
         
-        $respostaDoBot = "Olá, {$usuario->nome}! 🔒\n\nA tua subscrição do Merkee {$motivo_bloqueio}.\n\nPara renovares ou saberes mais, contacta o administrador.";
+        $respostaDoBot = "Olá, {$usuario->nome}! 🔒\n\nA tua subscrição do WalletlyBot {$motivo_bloqueio}.\n\nPara renovares ou saberes mais, contacta o administrador.";
         
         $checkLogStmt = $pdo->prepare("SELECT COUNT(*) FROM logs_bloqueio WHERE usuario_id = ? AND data_log = CURDATE()");
         $checkLogStmt->execute([$usuario->id]);

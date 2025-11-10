@@ -50,7 +50,7 @@ if ($compraId === 0) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detalhe da Compra - Merkee</title>
+    <title>Detalhe da Compra - WalletlyBot</title>
     <style>
         /* Paleta de Cores Dark Theme */
         :root {

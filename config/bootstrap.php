@@ -10,7 +10,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 // 2. Carrega as variáveis de ambiente (segredos) do .env
 try {
-    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..'); // Aponta para a pasta raiz 'merkee/'
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..'); // Aponta para a pasta raiz
     $dotenv->load();
 } catch (\Dotenv\Exception\InvalidPathException $e) {
     die("Erro: Não foi possível carregar o ficheiro .env. " . $e->getMessage());
