@@ -236,7 +236,7 @@ $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quer
 
     <footer>
         <div class="container">
-            &copy; <?php echo date("Y"); ?> WalletlyBot | O cara que te ajuda com as compras e ainda faz as contas pra você.
+            &copy; <?php echo date("Y"); ?> WalletlyBot | Um Micro-SaaS by Oliveira & Giovanini Software.
         </div>
     </footer>
 

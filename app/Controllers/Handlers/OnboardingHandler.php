@@ -140,7 +140,7 @@ class OnboardingHandler extends BaseHandler { // (Funciona)
     {
         $nomeCurto = explode(' ', $nomeUsuario)[0];
         
-        $mensagem = "Prazer, {$nomeCurto}! 👋\n\nEu sou o *WalletlyBot*, o teu assistente de compras inteligente.\n\nPosso ajudar-te a:\n✅ *Registar* itens durante a compra.\n📊 *Comparar* preços com as tuas compras passadas.\n💰 *Alertar-te* quando um produto favorito fica mais barato.\n\nQueres fazer um tutorial rápido de 1 minuto para ver como funciona?";
+        $mensagem = "Prazer, {$nomeCurto}! 👋\n\nEu sou o *WallertlyBot*, o teu assistente de compras inteligente.\n\nPosso ajudar-te a:\n✅ *Registar* itens durante a compra.\n📊 *Comparar* preços com as tuas compras passadas.\n💰 *Alertar-te* quando um produto favorito fica mais barato.\n\nQueres fazer um tutorial rápido de 1 minuto para ver como funciona?";
         $mensagem .= "\n\n*1* - Sim, vamos lá! (Tutorial de Registo)\n*2* - Quero aprender sobre as Listas\n*3* - Não, mostra-me todos os comandos\n*4* - Sair por agora";
         
         return $mensagem;

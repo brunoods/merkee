@@ -1,177 +1,177 @@
 <?php
 // ---
 // /public/webhook.php
-// (VERSÃO FINAL COMPLETA - COM LEITURA DE LOCALIZAÇÃO E LOG CORRIGIDO)
+// (VERSÃO FINAL COM CORREÇÃO DE LOOP/TIMEOUT DA META)
 // ---
 
-// (Linhas de debug para encontrar erros fatais)
+// (Debug)
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/../storage/PHP_FATAL_ERROR.log');
 
-// 1. Incluir Arquivo ÚNICO de Bootstrap
-// (Carrega .env, autoloader, getDbConnection() e a função global writeToLog())
+// 1. Incluir Bootstrap
 require_once __DIR__ . '/../config/bootstrap.php';
 
-// 2. Usar os "Namespaces" do Autoloader
+// 2. Usar Namespaces
 use App\Models\Usuario;
 use App\Models\Compra;
 use App\Controllers\BotController;
 use App\Services\WhatsAppService;
 
-// 3. Logging (Função local renomeada para não colidir com a global)
+// 3. Logging
 $logFilePath = __DIR__ . '/../storage/webhook_log.txt';
 function localWriteToLog($message) { 
     global $logFilePath;
-    // Chama a função GLOBAL (definida no bootstrap.php)
     writeToLog($logFilePath, $message, "WEBHOOK"); 
 }
-localWriteToLog("--- INÍCIO DA REQUISIÇÃO ---");
+
+// ==========================================================
+// PASSO A: VERIFICAÇÃO DO ENDPOINT (GET REQUEST)
+// ==========================================================
+if (isset($_GET['hub_mode']) && $_GET['hub_mode'] === 'subscribe') {
+    // (A sua lógica de verificação que já funcionou)
+    $verifyToken = $_ENV['WEBHOOK_VERIFY_TOKEN'] ?? getenv('WEBHOOK_VERIFY_TOKEN');
+    $challenge = $_GET['hub_challenge'] ?? null;
+    if ($challenge && $verifyToken && $_GET['hub_verify_token'] === $verifyToken) {
+        http_response_code(200);
+        echo $challenge;
+        localWriteToLog("--- VERIFICAÇÃO DE WEBHOOK BEM SUCEDIDA ---");
+        exit;
+    } else {
+        http_response_code(403);
+        localWriteToLog("!!! FALHA NA VERIFICAÇÃO DO WEBHOOK !!!");
+        exit;
+    }
+}
+
+// ==========================================================
+// PASSO B: PROCESSAMENTO DE MENSAGENS (POST REQUEST)
+// ==========================================================
+
+localWriteToLog("--- INÍCIO DA REQUISIÇÃO (POST) ---");
 
 // 4. Capturar e Validar a Requisição
 $jsonPayload = file_get_contents('php://input');
 $data = json_decode($jsonPayload, true); 
-if (!$data) {
-    localWriteToLog("Erro: Nenhum payload JSON recebido.");
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Nenhum payload recebido']);
-    exit;
-}
 localWriteToLog("Payload Recebido: " . $jsonPayload);
 
-// 5. Extrair Dados da Mensagem (AGORA INCLUI LOCALIZAÇÃO)
-$whatsapp_id = $data['sender']['id'] ?? $data['phone'] ?? null;
-$user_name = $data['sender']['name'] ?? 'Visitante';
+// 5. Extrair Dados da Mensagem (Estrutura da Meta API)
+$messageData = $data['entry'][0]['changes'][0]['value']['messages'][0] ?? null;
+
+if (!$messageData) {
+    localWriteToLog("Ignorado: Payload sem dados de mensagem (Status de entrega, etc.).");
+    http_response_code(200); // Diz OK para a Meta
+    exit;
+}
+
+$whatsapp_id = $messageData['from'];
+$message_type = $messageData['type'];
 
 $message_body = null;
-$contexto_extra = []; // (Para enviar a localização para o Bot)
+$contexto_extra = [];
 
-if (isset($data['text']['message'])) {
-    // É uma mensagem de texto
-    $message_body = $data['text']['message'];
-    
-} elseif (isset($data['location'])) {
-    // É uma mensagem de localização!
-    $message_body = 'USER_SENT_LOCATION'; // Palavra-chave especial
+if ($message_type === 'text') {
+    $message_body = $messageData['text']['body'];
+} elseif ($message_type === 'location') {
+    $message_body = 'USER_SENT_LOCATION';
     $contexto_extra['location'] = [
-        'latitude' => $data['location']['latitude'],
-        'longitude' => $data['location']['longitude']
+        'latitude' => $messageData['location']['latitude'],
+        'longitude' => $messageData['location']['longitude']
     ];
-    localWriteToLog("Recebida localização: Lat " . $data['location']['latitude'] . ", Lon " . $data['location']['longitude']);
-    
 } else {
-    // Outro tipo (imagem, áudio, etc.) - Ignoramos
-    localWriteToLog("Ignorado: Não é uma mensagem de texto ou localização.");
-    http_response_code(200);
-    echo json_encode(['status' => 'success', 'message' => 'Ignorado (não é texto/localização)']);
+    localWriteToLog("Ignorado: Tipo '{$message_type}' não suportado.");
+    http_response_code(200); // Diz OK para a Meta
     exit;
 }
 
-if (!$whatsapp_id || !$message_body) {
-    localWriteToLog("Ignorado: WhatsApp ID ou Corpo da Mensagem em falta.");
-    http_response_code(200);
-    echo json_encode(['status' => 'success', 'message' => 'Ignorado']);
-    exit;
+if (empty($message_body)) {
+     localWriteToLog("Ignorado: Corpo da mensagem vazio.");
+     http_response_code(200); // Diz OK para a Meta
+     exit;
 }
+
+// --- !! INÍCIO DA CORREÇÃO DO LOOP !! ---
+
+// 1. Envia a resposta HTTP 200 OK IMEDIATAMENTE.
+// Diz à Meta: "Recebi, pode parar de reenviar."
+http_response_code(200);
+echo json_encode(['status' => 'success', 'message' => 'Payload recebido e em processamento.']);
+
+// 2. Se o PHP-FPM estiver a ser usado, esta função envia a resposta
+// mas permite que o script continue a ser executado em background.
+if (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();
+}
+// Se não estiver a usar FPM, o script continua e envia a resposta no final,
+// mas a Meta pode reenviar se demorar muito.
+
+// --- !! FIM DA CORREÇÃO DO LOOP !! ---
+
+
+// 6. Lógica Principal (Agora executada em "background")
 localWriteToLog("Processando: ID [{$whatsapp_id}] | Mensagem [{$message_body}]");
 
-
-// 6. Lógica Principal (com try/catch de erros)
 try {
-    $pdo = getDbConnection(); // (Vem do bootstrap, já usa $_ENV)
-    $waService = new WhatsAppService(); // (Vem dos Services, já usa $_ENV)
+    $pdo = getDbConnection(); 
+    $waService = new WhatsAppService(); 
 
-    // Passo 1: Encontrar ou criar o usuário
-    $usuario = Usuario::findOrCreate($pdo, $whatsapp_id, $user_name);
+    // (Toda a sua lógica de "Portão de Acesso" (Onboarding/Subscrição)
+    // permanece a mesma que antes)
+    
+    // ... (Lógica do "Portão" aqui: findOrCreate, verificar nome_confirmado, verificar is_ativo)...
+    $usuario = Usuario::findOrCreate($pdo, $whatsapp_id, 'Visitante');
     localWriteToLog("Usuário: ID #" . $usuario->id . " | Nome Confirmado: " . ($usuario->nome_confirmado ? 'SIM' : 'NÃO') . " | Ativo: " . ($usuario->is_ativo ? 'SIM' : 'NÃO'));
-
-
-    // --- (LÓGICA DO "PORTÃO" DE ACESSO) ---
-
-    // 2. O "PORTÃO" (Gate) - PARTE 1: Pedir o Nome
+    
+    // (O "Portão" de Onboarding)
     if ($usuario->nome_confirmado == false && $usuario->conversa_estado == null) {
-        
         $usuario->updateState($pdo, 'aguardando_nome_para_onboarding');
         $respostaDoBot = "Olá! 👋 Vi que é a tua primeira vez aqui.\n\nPara começarmos, como gostarias de ser chamado(a)?";
-        
         localWriteToLog("Usuário #{$usuario->id} novo. A pedir o nome.");
         $waService->sendMessage($whatsapp_id, $respostaDoBot); 
-        
-        http_response_code(200);
-        echo json_encode(['status' => 'success', 'message' => 'Novo usuário. A aguardar nome.']);
-        exit;
+        exit; // Termina o script de background
     }
-
-
-    // 3. O "PORTÃO" (Gate) - PARTE 2: Verificar Subscrição
+    
+    // (O "Portão" de Subscrição)
     $hoje = new DateTime();
     $data_exp = $usuario->data_expiracao ? new DateTime($usuario->data_expiracao) : null;
     $is_valido = false;
     $motivo_bloqueio = "não está ativo";
 
-    if ($usuario->is_ativo && $data_exp && $data_exp >= $hoje) {
-        $is_valido = true;
-    } elseif ($usuario->is_ativo && $data_exp && $data_exp < $hoje) {
-        $motivo_bloqueio = "expirou em " . $data_exp->format('d/m/Y');
-    } elseif (!$usuario->is_ativo) {
-        $motivo_bloqueio = "está revogado ou pendente de ativação";
-    }
+    if ($usuario->is_ativo && $data_exp && $data_exp >= $hoje) $is_valido = true;
+    elseif ($usuario->is_ativo && $data_exp && $data_exp < $hoje) $motivo_bloqueio = "expirou em " . $data_exp->format('d/m/Y');
+    elseif (!$usuario->is_ativo) $motivo_bloqueio = "está revogado ou pendente de ativação";
     
-    // (Permite que o fluxo de onboarding passe, mesmo se inativo)
     $is_valido = ($usuario->conversa_estado === 'aguardando_nome_para_onboarding' || $usuario->conversa_estado === 'aguardando_decisao_onboarding') ? true : $is_valido;
 
     if ($is_valido == false) {
-        
-        $respostaDoBot = "Olá, {$usuario->nome}! 🔒\n\nA tua subscrição do WalletlyBot {$motivo_bloqueio}.\n\nPara renovares ou saberes mais, contacta o administrador.";
-        
+        // (Lógica de enviar mensagem de bloqueio, se não enviado hoje)
         $checkLogStmt = $pdo->prepare("SELECT COUNT(*) FROM logs_bloqueio WHERE usuario_id = ? AND data_log = CURDATE()");
         $checkLogStmt->execute([$usuario->id]);
-        $ja_enviado_hoje = $checkLogStmt->fetchColumn() > 0;
-
-        if (!$ja_enviado_hoje) {
+        if ($checkLogStmt->fetchColumn() == 0) {
+             $respostaDoBot = "Olá, {$usuario->nome}! 🔒\n\nA tua subscrição do Merkee {$motivo_bloqueio}.\n\nContacta o administrador.";
              localWriteToLog("Usuário #{$usuario->id} INATIVO/EXPIRADO ({$motivo_bloqueio}). A enviar mensagem de bloqueio.");
              $waService->sendMessage($whatsapp_id, $respostaDoBot); 
              $pdo->prepare("INSERT INTO logs_bloqueio (usuario_id, data_log) VALUES (?, CURDATE())")->execute([$usuario->id]);
-        } else {
-            localWriteToLog("Usuário #{$usuario->id} INATIVO/EXPIRADO. Ignorado silenciosamente (já notificado hoje).");
         }
-
-        http_response_code(200);
-        echo json_encode(['status' => 'success', 'message' => 'Usuário inativo/expirado. Bloqueado.']);
-        exit;
+        exit; // Termina o script de background
     }
-    // --- (FIM DO "PORTÃO") ---
 
-
-    // 4. Se passou do "portão":
-    
+    // Se passou do "portão":
     $compraAtiva = Compra::findActiveByUser($pdo, $usuario->id);
-    if ($compraAtiva) {
-        localWriteToLog("Usuário tem uma compra ativa (ID: " . $compraAtiva->id . ")");
-    } else {
-        localWriteToLog("Usuário não tem compra ativa.");
-    }
-
-    $bot = new BotController($pdo, $usuario, $compraAtiva);
     
-    // (Passa o contexto_extra, que pode ter a localização)
+    $bot = new BotController($pdo, $usuario, $compraAtiva);
     $respostaDoBot = $bot->processMessage($message_body, $contexto_extra); 
     
     localWriteToLog("Resposta do Bot: [ " . str_replace("\n", " ", $respostaDoBot) . " ]");
     
     $waService->sendMessage($whatsapp_id, $respostaDoBot); 
 
-    http_response_code(200);
-    echo json_encode(['status' => 'success', 'message' => 'Mensagem processada e resposta enviada']);
-
 } catch (Exception $e) { 
-    // (Este bloco apanha erros de DB, API, Bot, etc.)
-    localWriteToLog("!!! ERRO GERAL / CRÍTICO !!!: " . $e->getMessage() . " (Ficheiro: " . $e->getFile() . " Linha: " . $e->getLine() . ")");
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'Erro interno de servidor']);
+    // Se falhar, apenas logamos. Não podemos enviar 500 pois já enviámos 200.
+    localWriteToLog("!!! ERRO GERAL (Pós-Resposta) !!!: " . $e->getMessage() . " (Ficheiro: " . $e->getFile() . " Linha: " . $e->getLine() . ")");
 }
 
-localWriteToLog("--- FIM DA REQUISIÇÃO ---" . PHP_EOL);
+localWriteToLog("--- FIM DA REQUISIÇÃO (Processamento em Background) ---" . PHP_EOL);
 ?>

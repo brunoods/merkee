@@ -380,7 +380,7 @@ class BotController {
             }
 
             // 3. Monta o link
-            $magicLink = $appUrl . "/merkee/public/auth.php?token=" . $token;
+            $magicLink = $appUrl . "/aplicativo/public/auth.php?token=" . $token;
             
             // 4. Prepara a resposta
             $nomeCurto = explode(' ', $this->usuario->nome)[0];

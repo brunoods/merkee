@@ -224,7 +224,7 @@ border-radius:10px;padding:30px;text-align:center;border:1px solid var(--cor-bor
 <body>
 
 <header>
-  <h1>WalletlyBot Admin</h1>
+  <h1>Merkee Admin</h1>
   <?php if(isset($_SESSION['admin_logado']) && $_SESSION['admin_logado']===true): ?>
   <a href="?acao=logout" class="logout">Sair</a>
   <?php endif; ?>
