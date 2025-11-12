@@ -1,7 +1,7 @@
 <?php
 // ---
 // /app/Controllers/Handlers/PurchaseStartHandler.php
-// (VERSÃO 3 - CORREÇÃO DEFINITIVA DO BUG DE SELEÇÃO E SINTAXE)
+// (VERSÃO 5.2 - CORREÇÃO DE LÓGICA 'return' EM FALTA)
 // ---
 
 namespace App\Controllers\Handlers;
@@ -12,6 +12,8 @@ use App\Models\HistoricoPreco;
 use App\Models\ListaCompra;
 use App\Services\GooglePlacesService;
 use App\Utils\StringUtils;
+// (Certifica-te que tens o BaseHandler.php no mesmo diretório)
+// use App\Controllers\Handlers\BaseHandler; 
 
 class PurchaseStartHandler extends BaseHandler {
 
@@ -45,6 +47,15 @@ class PurchaseStartHandler extends BaseHandler {
         if ($estado === 'aguardando_lista_para_iniciar') {
              return $this->handleEscolhaDeLista($respostaUsuario, $contexto);
         }
+        
+        // --- (Rotas Adicionadas) ---
+        if ($estado === 'aguardando_correcao_cidade') {
+            return $this->handleCorrecaoCidade($respostaUsuario, $contexto);
+        }
+        if ($estado === 'aguardando_correcao_estado') {
+            return $this->handleCorrecaoEstado($respostaUsuario, $contexto);
+        }
+        // --- (Fim das Novas Rotas) ---
                      
         $this->usuario->clearState($this->pdo);
         return "Opa! 🤔 Parece que me perdi no início da tua compra. Vamos recomeçar. Envia *iniciar compra* novamente.";
@@ -82,11 +93,9 @@ class PurchaseStartHandler extends BaseHandler {
         $novoContexto = [];
         $opcoes = 1;
         
-        // CORREÇÃO DE EXIBIÇÃO: Usamos $opcoes para a contagem visual (1, 2, 3...)
         foreach ($locais as $local) {
             $resposta .= "\n*$opcoes* - " . htmlspecialchars($local['nome_google']);
             $resposta .= "\n  _" . htmlspecialchars($local['endereco']) . "_";
-            // Armazenamos no array com chaves 0-based, pois o JSON as reindexa.
             $novoContexto[] = $local; 
             $opcoes++;
         }
@@ -122,11 +131,9 @@ class PurchaseStartHandler extends BaseHandler {
         $novoContexto = [];
         $opcoes = 1;
 
-        // CORREÇÃO DE EXIBIÇÃO: Usamos $opcoes para a contagem visual (1, 2, 3...)
         foreach ($locais as $local) {
             $resposta .= "\n*$opcoes* - " . htmlspecialchars($local['nome_google']);
             $resposta .= "\n  _" . htmlspecialchars($local['endereco']) . "_";
-            // Armazenamos no array com chaves 0-based, pois o JSON as reindexa.
             $novoContexto[] = $local; 
             $opcoes++;
         }
@@ -141,48 +148,40 @@ class PurchaseStartHandler extends BaseHandler {
 
     /**
      * PASSO 3 (Fluxo Comum): Utilizador confirma o local
-     * (CORREÇÃO DE ÍNDICE APLICADA AQUI)
      */
     private function handleLocalGoogleConfirmacao(string $respostaUsuario, array $contexto): string
     {
-        // $escolha é 1, 2, 3...
         $escolha = (int) trim($respostaUsuario);
-        
-        // CORREÇÃO DE LÓGICA: Mapeia a escolha do utilizador (1-based) para o índice interno (0-based).
         $indiceReal = $escolha - 1;
 
-        // 1. Lógica de "Nenhum destes"
         if (isset($contexto['acao_manual']) && $escolha === (int)$contexto['acao_manual']) {
             $this->usuario->updateState($this->pdo, 'aguardando_local_manual_cidade', ['nome_mercado' => 'Manual']);
             return "Entendido. Qual o *nome* do mercado?";
         }
             
-        // 2. Lógica de Seleção de Mercado (usa o índice corrigido)
         if (is_numeric($escolha) && $indiceReal >= 0 && isset($contexto[$indiceReal])) {
-            $localEscolhido = $contexto[$indiceReal]; // <-- Acesso Corrigido!
             
-            $estabelecimento = Estabelecimento::findByPlaceId($this->pdo, $localEscolhido['place_id']);
+            $localEscolhido = $contexto[$indiceReal]; 
+            $place_id = $localEscolhido['place_id'];
+            
+            $estabelecimento = Estabelecimento::findByPlaceId($this->pdo, $place_id);
             
             if (!$estabelecimento) {
-                $endereco = $localEscolhido['endereco']; 
-                $cidade = 'N/A';
-                $estado = 'N/A';
-                // Tenta extrair (Ex: "Rua X, Mirassol - SP" ou "Mirassol, SP")
-                if (preg_match('/, ([\w\s]+) - (\w{2})/', $endereco, $matches) || preg_match('/([\w\s]+), (\w{2})/', $endereco, $matches)) {
-                    $cidade = trim($matches[1]);
-                    $estado = $matches[2];
-                }
+                $google = new GooglePlacesService();
+                // (Usamos o Service que já tem o fallback para 'administrative_area_level_2')
+                $detalhes = $google->buscarDetalhesDoLocal($place_id);
                 
                 $estabelecimento = Estabelecimento::createFromGoogle(
                     $this->pdo, 
-                    $localEscolhido['place_id'], 
-                    $localEscolhido['nome_google'], 
-                    $cidade, 
-                    $estado
+                    $place_id, 
+                    $detalhes['nome_google'], 
+                    $detalhes['cidade'], 
+                    $detalhes['estado']
                 );
             }
             
-            return $this->iniciarFluxoDeLista($estabelecimento);
+            // Em vez de ir direto para a lista, vamos validar os dados
+            return $this->validarEstabelecimentoEContinuar($estabelecimento);
         }
         
         $this->usuario->clearState($this->pdo);
@@ -221,7 +220,8 @@ class PurchaseStartHandler extends BaseHandler {
         
         $contexto['cidade'] = $cidade;
         $estado = "N/A"; 
-        if (preg_match('/([\w\s]+) (\w{2})/', $cidade, $matches)) {
+        // Tenta extrair o estado se o utilizador enviar "Mirassol SP"
+        if (preg_match('/([\w\s\.-]+) (\w{2})$/i', $cidade, $matches)) {
             $cidade = trim($matches[1]);
             $estado = strtoupper($matches[2]);
         }
@@ -232,11 +232,111 @@ class PurchaseStartHandler extends BaseHandler {
             $estabelecimento = Estabelecimento::createManual($this->pdo, $nomeMercado, $cidade, $estado);
         }
 
-        return $this->iniciarFluxoDeLista($estabelecimento);
+        // Vamos validar o resultado manual também
+        return $this->validarEstabelecimentoEContinuar($estabelecimento);
+    }
+    
+
+    // --- (INÍCIO DOS NOVOS MÉTODOS DE CORREÇÃO) ---
+
+    /**
+     * PASSO 3.5 (Validador): Verifica se os dados do estabelecimento estão OK.
+     * Se não, pede ao utilizador para corrigir.
+     */
+    private function validarEstabelecimentoEContinuar(Estabelecimento $est): string
+    {
+        // Corrigir o bug onde "Brasil" é apanhado como cidade
+        $cidadeInvalida = (empty($est->cidade) || $est->cidade === 'N/A' || $est->cidade === 'Brasil');
+        $estadoInvalido = (empty($est->estado) || $est->estado === 'N/A');
+
+        // --- (INÍCIO DA CORREÇÃO B - v5.2) ---
+        // A lógica agora usa 'return' para parar a execução.
+        
+        // Prioridade 1: Cidade
+        if ($cidadeInvalida) {
+            $this->usuario->updateState($this->pdo, 'aguardando_correcao_cidade', ['est_id' => $est->id]);
+            return "Para te dar melhores comparações no futuro, em qual *cidade* fica o *{$est->nome}*?";
+        }
+        
+        // Prioridade 2: Estado
+        if ($estadoInvalido) {
+            $this->usuario->updateState($this->pdo, 'aguardando_correcao_estado', ['est_id' => $est->id]);
+            // ADICIONA A PALAVRA 'return' AQUI
+            return "Entendido. E qual a *sigla do estado* (ex: SP) onde fica o *{$est->nome}*?";
+        }
+        
+        // --- (FIM DA CORREÇÃO B - v5.2) ---
+
+        // Se passou em ambos, os dados estão bons!
+        return $this->iniciarFluxoDeLista($est);
+    }
+
+    /**
+     * PASSO 3.6 (Corretor): O utilizador enviou a cidade em falta.
+     */
+    private function handleCorrecaoCidade(string $respostaUsuario, array $contexto): string
+    {
+        if (empty($contexto['est_id'])) {
+            $this->usuario->clearState($this->pdo);
+            return "Opa, perdi-me. 😕 Envia *iniciar compra* novamente.";
+        }
+
+        $est = Estabelecimento::findById($this->pdo, (int)$contexto['est_id']);
+        if (!$est) {
+            $this->usuario->clearState($this->pdo);
+            return "Opa, não encontrei o mercado que estávamos a registar. 😕 Envia *iniciar compra* novamente.";
+        }
+        
+        $cidade = trim(strip_tags($respostaUsuario));
+        
+        // Se o utilizador enviar "Mirassol SP"
+        if (preg_match('/([\w\s\.-]+) (\w{2})$/i', $cidade, $matches)) {
+            $cidade = trim($matches[1]);
+            $estado = strtoupper($matches[2]);
+            $est->updateCampo($this->pdo, 'estado', $estado);
+        }
+        
+        $est->updateCampo($this->pdo, 'cidade', $cidade);
+
+        // Re-valida (para o caso de o estado também faltar)
+        return $this->validarEstabelecimentoEContinuar($est);
     }
     
     /**
+     * PASSO 3.7 (Corretor): O utilizador enviou o estado em falta.
+     */
+    private function handleCorrecaoEstado(string $respostaUsuario, array $contexto): string
+    {
+        if (empty($contexto['est_id'])) {
+            $this->usuario->clearState($this->pdo);
+            return "Opa, perdi-me. 😕 Envia *iniciar compra* novamente.";
+        }
+
+        $est = Estabelecimento::findById($this->pdo, (int)$contexto['est_id']);
+        if (!$est) {
+            $this->usuario->clearState($this->pdo);
+            return "Opa, não encontrei o mercado que estávamos a registar. 😕 Envia *iniciar compra* novamente.";
+        }
+
+        $estado = strtoupper(trim(strip_tags($respostaUsuario)));
+        // Garante que é uma sigla
+        if (strlen($estado) > 2) {
+            $estado = substr($estado, 0, 2);
+        }
+        
+        $est->updateCampo($this->pdo, 'estado', $estado);
+
+        // Re-valida (para o caso de a cidade também ter faltado, embora seja raro)
+        return $this->validarEstabelecimentoEContinuar($est);
+    }
+
+    // --- (FIM DOS NOVOS MÉTODOS DE CORREÇÃO) ---
+
+
+    
+    /**
      * PASSO 4 (Final): Iniciar Fluxo de Lista
+     * (Este método não muda)
      */
     private function iniciarFluxoDeLista(Estabelecimento $estabelecimento): string
     {
@@ -261,12 +361,14 @@ class PurchaseStartHandler extends BaseHandler {
             $opcoes++;
         }
         
+        // --- (CORREÇÃO DE BUG: Estava a usar $novoContexto em vez de $contexto) ---
         $this->usuario->updateState($this->pdo, 'aguardando_lista_para_iniciar', $contexto);
         return $resposta;
     }
     
     /**
      * PASSO 5 (Opcional): Utilizador escolhe uma lista
+     * (Este método não muda)
      */
     private function handleEscolhaDeLista(string $respostaUsuario, array $contexto): string
     {
@@ -291,6 +393,16 @@ class PurchaseStartHandler extends BaseHandler {
         $compraAtiva = Compra::findActiveByUser($this->pdo, $this->usuario->id);
         $est = Estabelecimento::findById($this->pdo, $compraAtiva->estabelecimento_id);
         
+        // Se a cidade ainda for N/A, não podemos comparar
+        if ($est->cidade === 'N/A' || empty($est->cidade)) {
+             $resposta = "Aqui está a tua lista! (Não foi possível comparar preços pois não sei a cidade desta loja).\n";
+             foreach ($itens as $item) {
+                 $resposta .= "\n\n🛒 *" . htmlspecialchars($item['produto_nome']) . "*";
+             }
+             $resposta .= "\n\nEstou pronto para registar os itens que comprares!";
+             return $resposta;
+        }
+
         $precos = HistoricoPreco::findPricesForListInCity($this->pdo, $est->cidade, $nomesNormalizados, 30);
         
         $mapaPrecos = [];
@@ -320,3 +432,4 @@ class PurchaseStartHandler extends BaseHandler {
         return $resposta;
     }
 }
+?>

@@ -1,7 +1,7 @@
 <?php
 // ---
 // /public/detalhe_compra.php
-// (Funcionalidade #10: Detalhe de Compra - Dark Theme & Responsivo)
+// (Funcionalidade #10: Detalhe de Compra - v9 Aurora Glass)
 // ---
 
 session_start();
@@ -52,22 +52,27 @@ if ($compraId === 0) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Detalhe da Compra - WalletlyBot</title>
     <style>
-        /* Paleta de Cores Dark Theme */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        /* Paleta de Cores v9 Aurora Glass */
         :root {
-            --cor-fundo: #121212;
-            --cor-fundo-card: #1f1f1f;
-            --cor-texto-principal: #f0f0f0;
-            --cor-texto-secundaria: #a0a0a0;
-            --cor-principal: #0a9396; /* Azul Água */
-            --cor-sucesso: #90ee90; /* Verde Claro para Poupança */
-            --cor-alerta: #ff6b6b; /* Vermelho Claro para Gasto */
-            --cor-borda: #444444;
-            --cor-hover: #3c3c3c;
+            --cor-fundo: #1a1b26;
+            --cor-fundo-card: rgba(42, 45, 62, 0.7); /* Glassmorphism */
+            --cor-fundo-card-solido: #2a2d3e;
+            --cor-texto-principal: #e0e0e0;
+            --cor-texto-secundaria: #9a9bb5;
+            --cor-principal: #7a5cff; /* Roxo/Violeta */
+            --cor-sucesso: #00f0b5; /* Verde Menta */
+            --cor-alerta: #ff5c7a; /* Vermelho/Rosa */
+            --cor-borda: #3b3e55;
+            --cor-hover: rgba(122, 92, 255, 0.15); /* Roxo translúcido */
         }
 
         body { 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            background: var(--cor-fundo); 
+            font-family: 'Inter', system-ui, sans-serif; 
+            background: radial-gradient(circle at 10% 20%, rgba(122, 92, 255, 0.1), transparent 30%),
+                        radial-gradient(circle at 90% 80%, rgba(0, 240, 181, 0.08), transparent 30%),
+                        var(--cor-fundo); 
             margin: 0; 
             padding: 20px; 
             color: var(--cor-texto-principal); 
@@ -76,9 +81,11 @@ if ($compraId === 0) {
             max-width: 1100px; 
             margin: 20px auto; 
             background: var(--cor-fundo-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--cor-borda);
             padding: 30px;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5); 
+            box-shadow: 0 8px 30px rgba(0,0,0,0.7); 
         }
 
         /* HEADER */
@@ -86,7 +93,7 @@ if ($compraId === 0) {
             display: flex; 
             justify-content: space-between; 
             align-items: center; 
-            border-bottom: 3px solid var(--cor-borda); 
+            border-bottom: 2px solid var(--cor-borda); 
             padding-bottom: 20px; 
             margin-bottom: 30px;
         }
@@ -102,12 +109,12 @@ if ($compraId === 0) {
             padding: 8px 15px;
             border: 1px solid var(--cor-borda);
             border-radius: 6px;
-            transition: background 0.2s;
+            transition: all 0.2s;
         }
         header a:hover {
             background: var(--cor-principal);
             border-color: var(--cor-principal);
-            color: var(--cor-fundo-card);
+            color: #fff;
         }
         
         /* BOTÃO VOLTAR */
@@ -118,14 +125,17 @@ if ($compraId === 0) {
             display: inline-block;
             margin-bottom: 25px;
             transition: color 0.2s;
+            padding: 5px 10px;
+            border-radius: 6px;
         }
         .link-voltar:hover {
             color: var(--cor-sucesso);
+            background: rgba(0, 240, 181, 0.1);
         }
 
         /* CABEÇALHO DA COMPRA (CARD DE DESTAQUE) */
         .compra-header { 
-            background: #252525; 
+            background: var(--cor-fundo-card-solido); 
             padding: 25px; 
             border-radius: 10px; 
             border-left: 5px solid var(--cor-principal);
@@ -149,6 +159,7 @@ if ($compraId === 0) {
         }
         .compra-header .totais div { 
             font-size: 15px; 
+            color: var(--cor-texto-secundaria);
         }
         .compra-header .totais span { 
             display: block; 
@@ -166,14 +177,14 @@ if ($compraId === 0) {
         .table-wrapper {
             overflow-x: auto;
             margin-top: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); 
+            border: 1px solid var(--cor-borda);
         }
         table { 
             width: 100%; 
             min-width: 700px;
             border-collapse: collapse; 
-            background: var(--cor-fundo-card); 
         }
         th, td { 
             padding: 12px 15px; 
@@ -181,19 +192,30 @@ if ($compraId === 0) {
             border-bottom: 1px solid var(--cor-borda); 
         }
         th { 
-            background-color: #252525; 
+            background-color: var(--cor-fundo-card-solido); 
             font-size: 14px; 
+            text-transform: uppercase;
             color: var(--cor-principal); 
             font-weight: 600; 
             border-bottom: 2px solid var(--cor-principal);
         }
         td { font-size: 15px; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background-color: var(--cor-hover); }
 
         .col-valor { text-align: right; font-weight: 600; color: var(--cor-alerta); }
         .col-poupanca { text-align: right; font-weight: 600; color: var(--cor-sucesso); }
         .col-preco-normal { text-decoration: line-through; color: #777; font-size: 12px; font-weight: 400; display: block; }
         .col-qtd { width: 150px; }
-        .promo-tag { color: var(--cor-sucesso); font-weight: 600; }
+        .promo-tag { 
+            color: var(--cor-sucesso); 
+            font-weight: 600; 
+            font-size: 12px;
+            background: rgba(0, 240, 181, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 5px;
+        }
         .item-poupanca-cell { color: var(--cor-sucesso); }
         
         /* RESPONSIVIDADE (MOBILE) */
@@ -267,7 +289,7 @@ if ($compraId === 0) {
                                     <td>
                                         <?php echo htmlspecialchars($item['produto_nome']); ?>
                                         <?php if ($item['em_promocao']): ?>
-                                            <span class="promo-tag">✨ Promoção!</span>
+                                            <span class="promo-tag">PROMO</span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="col-qtd">

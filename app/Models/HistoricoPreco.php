@@ -1,7 +1,7 @@
 <?php
 // ---
 // /app/Models/HistoricoPreco.php
-// (VERSÃO CORRIGIDA - Erro 'false returned')
+// (VERSÃO COMPLETA - COM ALERTAS #13 E SUGESTÕES #14)
 // ---
 
 namespace App\Models;
@@ -30,11 +30,9 @@ class HistoricoPreco {
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$usuario_id, $produtoNomeNormalizado, $compraAtualId]);
         
-        // --- (A CORREÇÃO ESTÁ AQUI) ---
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         // Se fetch() retornar false (nada encontrado), nós retornamos null
         return $result === false ? null : $result;
-        // --- (FIM DA CORREÇÃO) ---
     }
     
     /**
@@ -156,7 +154,7 @@ class HistoricoPreco {
     }
 
     /**
-     * (Usado pelo CRON 'verificar_alertas_preco')
+     * (Usado pelo CRON 'verificar_alertas_ preco')
      * Busca o último preço pago por UM usuário por UM produto.
      */
     public static function getUserLastPaidPrice(PDO $pdo, int $usuario_id, string $produtoNomeNormalizado): ?float
@@ -173,6 +171,108 @@ class HistoricoPreco {
         $stmt->execute([$usuario_id, $produtoNomeNormalizado]);
         $result = $stmt->fetch();
         return $result ? (float)$result['preco_unitario'] : null;
+    }
+    
+    // --- (NOVO MÉTODO FEATURE #13) ---
+
+    /**
+     * FEATURE #13: Busca produtos onde o último preço pago pelo usuário
+     * é significativamente maior que o melhor preço da cidade (simulando alerta).
+     */
+    public static function findHighPriceAlerts(PDO $pdo, int $usuario_id, int $thresholdPercent = 10, int $limit = 3): array
+    {
+        $sql = "
+            WITH LastPrice AS (
+                SELECT
+                    hp.produto_nome,
+                    hp.produto_nome_normalizado,
+                    hp.preco_unitario AS user_last_price,
+                    hp.data_compra,
+                    ROW_NUMBER() OVER(
+                        PARTITION BY hp.produto_nome_normalizado 
+                        ORDER BY hp.data_compra DESC
+                    ) as rn
+                FROM historico_precos hp
+                WHERE hp.usuario_id = :user_id
+            ),
+            BestCityPrice AS (
+                SELECT
+                    hp.produto_nome_normalizado,
+                    MIN(hp.preco_unitario) AS best_price_city
+                FROM historico_precos hp
+                JOIN estabelecimentos e ON hp.estabelecimento_id = e.id
+                WHERE hp.data_compra >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                GROUP BY hp.produto_nome_normalizado
+            )
+            SELECT
+                LP.produto_nome,
+                LP.user_last_price,
+                BCP.best_price_city,
+                (LP.user_last_price - BCP.best_price_city) AS diferenca
+            FROM LastPrice LP
+            JOIN BestCityPrice BCP ON LP.produto_nome_normalizado = BCP.produto_nome_normalizado
+            WHERE LP.rn = 1 -- Apenas o último registo do utilizador
+              AND (LP.user_last_price > BCP.best_price_city)
+              AND ((LP.user_last_price - BCP.best_price_city) / BCP.best_price_city) * 100 > :threshold
+            ORDER BY diferenca DESC
+            LIMIT :limit
+        ";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':user_id', $usuario_id, PDO::PARAM_INT);
+        $stmt->bindValue(':threshold', $thresholdPercent, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // --- (NOVO MÉTODO FEATURE #14) ---
+
+    /**
+     * FEATURE #14: Encontra sugestões de mercado para os produtos mais comprados.
+     */
+    public static function findMarketSuggestions(PDO $pdo, int $usuario_id, int $dias = 60): array
+    {
+        // 1. Encontra os 3 produtos mais comprados
+        $produtos = self::findFavoriteProductNames($pdo, $usuario_id, 3);
+        $sugestoes = [];
+        
+        foreach ($produtos as $produto) {
+            $nomeNormalizado = $produto['produto_nome_normalizado'];
+            $dataLimite = (new DateTime("-{$dias} days"))->format('Y-m-d');
+
+            // 2. Para cada produto, encontra o mercado com o menor preço médio recente
+            $sql = "
+                SELECT 
+                    e.nome AS estabelecimento_nome,
+                    AVG(hp.preco_unitario) AS preco_medio_mercado
+                FROM historico_precos hp
+                JOIN estabelecimentos e ON hp.estabelecimento_id = e.id
+                WHERE hp.usuario_id = :user_id 
+                  AND hp.produto_nome_normalizado = :nome_norm
+                  AND hp.data_compra >= :data_limite
+                GROUP BY e.id, e.nome
+                ORDER BY preco_medio_mercado ASC
+                LIMIT 1
+            ";
+            
+            $stmt = $pdo->prepare($sql);
+            $stmt->bindValue(':user_id', $usuario_id, PDO::PARAM_INT);
+            $stmt->bindValue(':nome_norm', $nomeNormalizado, PDO::PARAM_STR);
+            $stmt->bindValue(':data_limite', $dataLimite, PDO::PARAM_STR);
+            $stmt->execute();
+            $melhorMercado = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($melhorMercado) {
+                $sugestoes[] = [
+                    'produto' => $produto['produto_nome'],
+                    'mercado_nome' => $melhorMercado['estabelecimento_nome'],
+                    'preco_medio' => $melhorMercado['preco_medio_mercado']
+                ];
+            }
+        }
+        
+        return $sugestoes;
     }
 }
 ?>

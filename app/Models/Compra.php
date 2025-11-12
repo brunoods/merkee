@@ -1,7 +1,7 @@
 <?php
 // ---
 // /app/Models/Compra.php
-// (VERSÃO ATUALIZADA - CORREÇÃO LÓGICA DE PREÇO)
+// (VERSÃO ATUALIZADA - ADICIONA MÉTODOS 'ver itens' e 'desfazer')
 // ---
 
 namespace App\Models;
@@ -9,10 +9,10 @@ namespace App\Models;
 use PDO;
 use App\Utils\StringUtils;
 use DateTime;
+use Exception; // (Adicionado para a transação)
 
 class Compra {
     
-    // (Propriedades idênticas...)
     public int $id;
     public int $usuario_id;
     public int $estabelecimento_id;
@@ -23,7 +23,6 @@ class Compra {
     public ?float $total_gasto;
     public ?float $total_poupado;
 
-    // (Construtor e fromData idênticos...)
     private function __construct(array $data) {
         $this->id = (int)$data['id'];
         $this->usuario_id = (int)$data['usuario_id'];
@@ -35,12 +34,12 @@ class Compra {
         $this->total_gasto = $data['total_gasto'] ?? null; 
         $this->total_poupado = $data['total_poupado'] ?? null; 
     }
+
     private static function fromData(array $data): Compra
     {
         return new Compra($data);
     }
     
-    // (Funções find... idênticas...)
     public static function findById(PDO $pdo, int $id): ?Compra 
     {
         $stmt = $pdo->prepare("SELECT * FROM compras WHERE id = ?");
@@ -48,6 +47,7 @@ class Compra {
         $data = $stmt->fetch();
         return $data ? self::fromData($data) : null;
     }
+
     public static function findActiveByUser(PDO $pdo, int $usuario_id): ?Compra 
     {
         $stmt = $pdo->prepare("SELECT * FROM compras WHERE usuario_id = ? AND status = 'ativa'");
@@ -55,6 +55,7 @@ class Compra {
         $data = $stmt->fetch();
         return $data ? self::fromData($data) : null;
     }
+
     public static function findLastCompletedByUser(PDO $pdo, int $usuario_id): ?array
     {
         $sql = "
@@ -71,7 +72,6 @@ class Compra {
         return $result === false ? null : $result;
     }
 
-    // (Função create idêntica...)
     public static function create(PDO $pdo, int $usuario_id, int $estabelecimento_id): Compra
     {
         $dataInicio = (new DateTime())->format('Y-m-d H:i:s');
@@ -104,13 +104,6 @@ class Compra {
     {
         $nomeNormalizado = StringUtils::normalize($nome); 
         $emPromocao = ($precoNormalUnitario !== null && $precoNormalUnitario > $precoPagoUnitario);
-        
-        // --- (A CORREÇÃO ESTÁ AQUI) ---
-        // A variável $precoPago já é o preço unitário (vem do Parser)
-        // Não precisamos mais dividir.
-        // $precoUnitario = $precoPago / ($quantidade > 0 ? $quantidade : 1); 
-        // --- (FIM DA CORREÇÃO) ---
-
 
         $pdo->beginTransaction();
         try {
@@ -120,7 +113,6 @@ class Compra {
                     (compra_id, produto_nome, produto_nome_normalizado, quantidade_desc, quantidade, preco, preco_normal, em_promocao) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             );
-            // (Agora passamos o $precoPagoUnitario e $precoNormalUnitario diretamente)
             $stmt->execute([
                 $this->id, $nome, $nomeNormalizado, $qtdDesc, $quantidade, $precoPagoUnitario, $precoNormalUnitario, $emPromocao
             ]);
@@ -143,13 +135,12 @@ class Compra {
             $pdo->commit();
             return $itemId;
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) { // Alterado de \Exception para Exception
             $pdo->rollBack();
             throw $e; 
         }
     }
 
-    // (O resto do ficheiro (finalize, findAllCompletedByUser, etc.) é idêntico)
     public function finalize(PDO $pdo): array
     {
         $dataFim = (new DateTime())->format('Y-m-d H:i:s');
@@ -159,15 +150,14 @@ class Compra {
         $this->status = 'finalizada';
         $this->data_fim = $dataFim;
         
-        $stmt = $pdo->prepare("
-            SELECT * FROM itens_compra 
-            WHERE compra_id = ?
-        ");
+        $stmt = $pdo->prepare("SELECT * FROM itens_compra WHERE compra_id = ?");
         $stmt->execute([$this->id]);
         $itens = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return ['itens' => $itens];
     }
+    
+    // ... (findAllCompletedByUser, findByIdAndUser, findItemsByCompraId continuam iguais) ...
     public static function findAllCompletedByUser(PDO $pdo, int $usuario_id): array
     {
         $sql = "
@@ -182,6 +172,7 @@ class Compra {
         $stmt->execute([$usuario_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
     public static function findByIdAndUser(PDO $pdo, int $id, int $usuario_id): ?array
     {
         $sql = "
@@ -198,6 +189,7 @@ class Compra {
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result === false ? null : $result;
     }
+
     public static function findItemsByCompraId(PDO $pdo, int $compra_id): array
     {
         $stmt = $pdo->prepare("
@@ -209,5 +201,103 @@ class Compra {
         $stmt->execute([$compra_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    // --- (INÍCIO DOS NOVOS MÉTODOS) ---
+
+    /**
+     * FEATURE #4: Encontra todos os itens da compra ativa.
+     */
+    public function findAllItems(PDO $pdo): array
+    {
+        $stmt = $pdo->prepare("
+            SELECT produto_nome, quantidade_desc, quantidade, preco
+            FROM itens_compra
+            WHERE compra_id = ?
+            ORDER BY id ASC
+        ");
+        $stmt->execute([$this->id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    /**
+     * FEATURE #5 (Passo 1): Encontra o último item registado nesta compra.
+     */
+    public function findLastItem(PDO $pdo): ?array
+    {
+         $stmt = $pdo->prepare("
+            SELECT *
+            FROM itens_compra
+            WHERE compra_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$this->id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result === false ? null : $result;
+    }
+    
+    /**
+     * FEATURE #5 (Passo 2): Apaga o item E o seu registo no histórico de preços.
+     */
+    public function deleteLastItemAndHistory(PDO $pdo, array $itemParaApagar): void
+    {
+        $pdo->beginTransaction();
+        try {
+            // 1. Apaga o item da compra
+            $stmt1 = $pdo->prepare("DELETE FROM itens_compra WHERE id = ?");
+            $stmt1->execute([$itemParaApagar['id']]);
+
+            // 2. Encontra o ID do histórico correspondente
+            // (O mais recente para esta compra E este produto)
+            $stmtFind = $pdo->prepare("
+                SELECT id FROM historico_precos 
+                WHERE compra_id = ? 
+                  AND produto_nome_normalizado = ?
+                ORDER BY id DESC 
+                LIMIT 1
+            ");
+            $stmtFind->execute([$this->id, $itemParaApagar['produto_nome_normalizado']]);
+            $historiaId = $stmtFind->fetchColumn();
+
+            // 3. Apaga o registo do histórico (se encontrado)
+            if ($historiaId) {
+                $stmt2 = $pdo->prepare("DELETE FROM historico_precos WHERE id = ?");
+                $stmt2->execute([$historiaId]);
+            }
+            
+            $pdo->commit();
+            
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            // Lança a exceção para que o BotController a possa apanhar
+            throw new Exception("Erro ao apagar o último item: " . $e->getMessage()); 
+        }
+    }
+    // --- (NOVO MÉTODO) ---
+
+    /**
+     * FEATURE #12: Calcula as métricas de desempenho para cada estabelecimento.
+     */
+    public static function findMarketRanking(PDO $pdo, int $usuario_id): array
+    {
+        $sql = "
+            SELECT 
+                e.nome AS estabelecimento_nome,
+                COUNT(c.id) AS total_compras,
+                SUM(c.total_gasto) AS gasto_total,
+                SUM(c.total_poupado) AS poupado_total,
+                (SUM(c.total_poupado) / SUM(c.total_gasto) * 100) AS percentual_poupado
+            FROM compras c
+            JOIN estabelecimentos e ON c.estabelecimento_id = e.id
+            WHERE c.usuario_id = ? AND c.status = 'finalizada'
+            GROUP BY e.nome
+            ORDER BY poupado_total DESC
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$usuario_id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+     // --- (FIM DOS NOVOS MÉTODOS) ---
 }
 ?>

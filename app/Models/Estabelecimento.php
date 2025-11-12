@@ -1,15 +1,13 @@
 <?php
 // ---
 // /app/Models/Estabelecimento.php
+// (VERSÃO ATUALIZADA COM updateCampo)
 // ---
 
-// 1. (A CORREÇÃO)
 namespace App\Models;
 
-// 2. (A CORREÇÃO)
 use PDO;
 
-// 3. (A CORREÇÃO)
 class Estabelecimento {
 
     public int $id;
@@ -112,5 +110,27 @@ class Estabelecimento {
         $data = $stmt->fetch();
         return $data ? self::fromData($data) : null;
     }
+
+    // --- (INÍCIO DO NOVO MÉTODO) ---
+
+    /**
+     * Atualiza um campo específico (cidade ou estado) do estabelecimento.
+     */
+    public function updateCampo(PDO $pdo, string $campo, string $valor): void
+    {
+        // Garante que apenas colunas seguras sejam atualizadas
+        if ($campo !== 'cidade' && $campo !== 'estado') {
+            return;
+        }
+
+        $stmt = $pdo->prepare(
+            "UPDATE estabelecimentos SET {$campo} = ? WHERE id = ?"
+        );
+        $stmt->execute([$valor, $this->id]);
+        
+        // Atualiza o objeto PHP na memória
+        $this->{$campo} = $valor;
+    }
+    // --- (FIM DO NOVO MÉTODO) ---
 }
 ?>

@@ -1,7 +1,7 @@
 <?php
 // ---
 // /public/logout.php
-// (Dark Theme & Responsive)
+// (v9 Aurora Glass)
 // ---
 
 session_start();
@@ -30,16 +30,20 @@ session_destroy();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>A Terminar Sessão</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
         :root {
-            --cor-fundo: #121212;
-            --cor-fundo-card: #1f1f1f;
-            --cor-texto-principal: #f0f0f0;
-            --cor-texto-secundaria: #a0a0a0;
-            --cor-principal: #0a9396;
+            --cor-fundo: #1a1b26;
+            --cor-fundo-card: rgba(42, 45, 62, 0.7); /* Glassmorphism */
+            --cor-texto-principal: #e0e0e0;
+            --cor-texto-secundaria: #9a9bb5;
+            --cor-principal: #7a5cff;
+            --cor-borda: #3b3e55;
         }
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            background: var(--cor-fundo); 
+            font-family: "Inter", system-ui, sans-serif; 
+            background: radial-gradient(circle at 10% 20%, rgba(122, 92, 255, 0.1), transparent 30%),
+                        radial-gradient(circle at 90% 80%, rgba(0, 240, 181, 0.08), transparent 30%),
+                        var(--cor-fundo); 
             color: var(--cor-texto-principal); 
             display: flex;
             justify-content: center;
@@ -49,9 +53,11 @@ session_destroy();
         }
         .message-box {
             background: var(--cor-fundo-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--cor-borda);
             padding: 40px;
             border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
             text-align: center;
             border-top: 5px solid var(--cor-principal);
             max-width: 400px;
@@ -61,9 +67,11 @@ session_destroy();
             color: var(--cor-principal);
             font-size: 28px;
             margin-bottom: 10px;
+            font-weight: 600;
         }
         p {
             color: var(--cor-texto-secundaria);
+            font-size: 16px;
         }
     </style>
     <meta http-equiv='refresh' content='2;url=dashboard.php'>

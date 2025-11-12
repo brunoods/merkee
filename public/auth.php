@@ -1,7 +1,7 @@
 <?php
 // ---
 // /public/auth.php
-// O "Porteiro" do Link Mágico (Dark Theme & Responsive Error)
+// O "Porteiro" do Link Mágico (v9 Aurora Glass)
 // ---
 
 // 1. Incluir o Bootstrap (para acesso ao DB e Models)
@@ -14,13 +14,15 @@ session_start();
 
 $token = $_GET['token'] ?? null;
 
-// --- Função de Saída de Erro UX (Dark Theme) ---
+// --- Função de Saída de Erro UX (v9 Aurora Glass) ---
 function displayError(string $message) {
-    // Paleta de cores Dark Theme
-    $corFundo = '#121212';
-    $corCard = '#2d2d2d';
-    $corAlerta = '#ff6b6b';
-    $corTextoPrincipal = '#f0f0f0';
+    // Paleta de cores v9 Aurora Glass
+    $corFundo = '#1a1b26';
+    $gradienteFundo = 'radial-gradient(circle at 10% 20%, rgba(122, 92, 255, 0.1), transparent 30%), radial-gradient(circle at 90% 80%, rgba(0, 240, 181, 0.08), transparent 30%)';
+    $corCard = 'rgba(42, 45, 62, 0.7)'; // Glassmorphism
+    $corAlerta = '#ff5c7a'; // Rosa/Vermelho
+    $corTextoPrincipal = '#e0e0e0';
+    $corBorda = '#3b3e55';
 
     echo '<!DOCTYPE html>
 <html lang="pt-br">
@@ -29,9 +31,10 @@ function displayError(string $message) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acesso Negado</title>
     <style>
+        @import url(\'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap\');
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            background: ' . $corFundo . '; 
+            font-family: "Inter", system-ui, sans-serif; 
+            background: ' . $gradienteFundo . ', ' . $corFundo . '; 
             color: ' . $corTextoPrincipal . '; 
             text-align: center; 
             padding: 50px; 
@@ -43,22 +46,26 @@ function displayError(string $message) {
         } 
         .box { 
             background: ' . $corCard . '; 
-            border: 2px solid ' . $corAlerta . '; 
+            backdrop-filter: blur(10px);
+            border: 1px solid ' . $corBorda . '; 
+            border-top: 4px solid ' . $corAlerta . ';
             color: ' . $corAlerta . '; 
             padding: 30px; 
             border-radius: 10px; 
             max-width: 450px; 
             width: 90%;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
+            box-shadow: 0 8px 30px rgba(0,0,0,0.7); 
         } 
         h2 { 
             margin-top: 0; 
             font-size: 24px; 
             color: ' . $corAlerta . ';
+            font-weight: 600;
         } 
         p { 
             font-size: 16px; 
             color: ' . $corTextoPrincipal . ';
+            line-height: 1.6;
         }
         @media (max-width: 600px) {
             body { padding: 20px; }

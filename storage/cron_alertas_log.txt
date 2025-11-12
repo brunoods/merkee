@@ -1,0 +1,6 @@
+[2025-11-12 00:00:08] (CRON_ALERTAS) --- CRON ALERTA INICIADO ---
+[2025-11-12 00:00:08] (CRON_ALERTAS) A verificar alertas para 3 usuários...
+[2025-11-12 00:00:08] (CRON_ALERTAS) A saltar Usuário #5: Sem cidade definida.
+[2025-11-12 00:00:08] (CRON_ALERTAS) A saltar Usuário #7: Sem cidade definida.
+[2025-11-12 00:00:08] (CRON_ALERTAS) A saltar Usuário #8: Sem cidade definida.
+[2025-11-12 00:00:08] (CRON_ALERTAS) --- CRON ALERTA FINALIZADO ---

@@ -1,7 +1,7 @@
 <?php
 // ---
 // /app/Models/Usuario.php
-// (VERSÃO COM NAMESPACE E FUNÇÕES DE LOGIN)
+// (VERSÃO COM NAMESPACE E FUNÇÕES DE LOGIN + MERCADO FAVORITO)
 // ---
 
 // 1. Define o Namespace
@@ -26,15 +26,17 @@ class Usuario {
     public bool $receber_dicas;
     public bool $is_ativo;
     public ?string $data_expiracao;
-    // (Novas propriedades para o token)
     public ?string $login_token; 
     public ?string $login_token_expira_em;
+    // --- (NOVA PROPRIEDADE) ---
+    public ?int $mercado_favorito_id; 
 
     private function __construct(int $id, string $whatsapp_id, ?string $nome, bool $nome_confirmado, 
                                  string $criado_em, ?string $estado, ?string $contexto, ?string $estado_iniciado, 
                                  bool $receber_alertas, bool $receber_dicas,
                                  bool $is_ativo, ?string $data_expiracao,
-                                 ?string $login_token, ?string $login_token_expira_em) // (Adicionado)
+                                 ?string $login_token, ?string $login_token_expira_em,
+                                 ?int $mercado_favorito_id) // (Adicionado)
     {
         $this->id = $id;
         $this->whatsapp_id = $whatsapp_id;
@@ -48,8 +50,9 @@ class Usuario {
         $this->receber_dicas = $receber_dicas;
         $this->is_ativo = $is_ativo;
         $this->data_expiracao = $data_expiracao;
-        $this->login_token = $login_token; // (Adicionado)
-        $this->login_token_expira_em = $login_token_expira_em; // (Adicionado)
+        $this->login_token = $login_token; 
+        $this->login_token_expira_em = $login_token_expira_em; 
+        $this->mercado_favorito_id = $mercado_favorito_id; // (Adicionado)
     }
 
     /**
@@ -70,76 +73,13 @@ class Usuario {
             (bool)$userData['receber_dicas'],
             (bool)$userData['is_ativo'],
             $userData['data_expiracao'],
-            $userData['login_token'] ?? null, // (Adicionado)
-            $userData['login_token_expira_em'] ?? null // (Adicionado)
+            $userData['login_token'] ?? null,
+            $userData['login_token_expira_em'] ?? null,
+            (int)$userData['mercado_favorito_id'] ?? null // (Adicionado)
         );
     }
-
-    /**
-     * Encontra todos os usuários (para o CRON).
-     */
-    public static function findAll(PDO $pdo): array
-    {
-        $stmt = $pdo->query(
-            "SELECT id, whatsapp_id, nome, receber_alertas, receber_dicas, is_ativo 
-             FROM usuarios"
-        );
-        $usersData = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        $usuarios = [];
-        foreach ($usersData as $userData) {
-            $user = new stdClass(); 
-            $user->id = (int)$userData['id'];
-            $user->whatsapp_id = $userData['whatsapp_id'];
-            $user->nome = $userData['nome'];
-            $user->receber_alertas = (bool)$userData['receber_alertas'];
-            $user->receber_dicas = (bool)$userData['receber_dicas'];
-            $user->is_ativo = (bool)$userData['is_ativo']; 
-            $usuarios[] = $user;
-        }
-        return $usuarios;
-    }
-
-    /**
-     * Encontra um usuário pelo seu ID numérico.
-     */
-    public static function findById(PDO $pdo, int $id): ?Usuario 
-    {
-        $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
-        $stmt->execute([$id]);
-        $userData = $stmt->fetch();
-        return $userData ? self::fromData($userData) : null;
-    }
-
-    /**
-     * Encontra um usuário ou cria um novo.
-     */
-    public static function findOrCreate(PDO $pdo, string $whatsapp_id, ?string $nome): Usuario 
-    {
-        $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE whatsapp_id = ?");
-        $stmt->execute([$whatsapp_id]);
-        $userData = $stmt->fetch();
-
-        if ($userData) {
-            return self::fromData($userData);
-        } else {
-            $dataCriacao = (new DateTime())->format('Y-m-d H:i:s');
-            
-            $stmt = $pdo->prepare(
-                "INSERT INTO usuarios (whatsapp_id, nome, nome_confirmado, criado_em) VALUES (?, ?, 0, ?)"
-            );
-            $stmt->execute([$whatsapp_id, $nome, $dataCriacao]); 
-            $newId = (int)$pdo->lastInsertId();
-            
-            return new Usuario(
-                $newId, $whatsapp_id, $nome, false, 
-                $dataCriacao,
-                null, null, null, true, true,
-                false, 
-                null, null, null
-            );
-        }
-    }
+    
+    // ... (findAll, findById, findOrCreate, updateNameAndConfirm, updateState, clearState, updateConfig, updateLoginToken, findByLoginToken continuam iguais) ...
 
     /**
      * Atualiza o nome e marca como confirmado.
@@ -208,9 +148,101 @@ class Usuario {
         $this->{$coluna} = $valor;
     }
 
+    // --- (NOVO MÉTODO) ---
+
     /**
-     * Gera e guarda um token de login único e temporário.
+     * FEATURE #18: Atualiza o ID do mercado favorito do utilizador.
      */
+    public function updateFavoriteMarket(PDO $pdo, ?int $estabelecimento_id): void
+    {
+        // Se o ID for 0 ou nulo, guardamos NULL na base de dados
+        $id_para_db = ($estabelecimento_id > 0) ? $estabelecimento_id : null;
+        
+        $stmt = $pdo->prepare(
+            "UPDATE usuarios SET mercado_favorito_id = ? WHERE id = ?"
+        );
+        $stmt->execute([$id_para_db, $this->id]);
+        
+        $this->mercado_favorito_id = $id_para_db;
+    }
+
+    // --- (FIM DO NOVO MÉTODO) ---
+
+    public static function findAll(PDO $pdo): array
+    {
+        $stmt = $pdo->query(
+            "SELECT id, whatsapp_id, nome, receber_alertas, receber_dicas, is_ativo 
+             FROM usuarios"
+        );
+        $usersData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $usuarios = [];
+        foreach ($usersData as $userData) {
+            $user = new stdClass(); 
+            $user->id = (int)$userData['id'];
+            $user->whatsapp_id = $userData['whatsapp_id'];
+            $user->nome = $userData['nome'];
+            $user->receber_alertas = (bool)$userData['receber_alertas'];
+            $user->receber_dicas = (bool)$userData['receber_dicas'];
+            $user->is_ativo = (bool)$userData['is_ativo']; 
+            $usuarios[] = $user;
+        }
+        return $usuarios;
+    }
+
+    public static function findById(PDO $pdo, int $id): ?Usuario 
+    {
+        $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
+        $stmt->execute([$id]);
+        $userData = $stmt->fetch();
+        return $userData ? self::fromData($userData) : null;
+    }
+
+    public static function findOrCreate(PDO $pdo, string $whatsapp_id, ?string $nome): Usuario 
+    {
+        $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE whatsapp_id = ?");
+        $stmt->execute([$whatsapp_id]);
+        $userData = $stmt->fetch();
+
+        if ($userData) {
+            return self::fromData($userData);
+        } else {
+            $dataCriacao = (new DateTime())->format('Y-m-d H:i:s');
+            
+            $stmt = $pdo->prepare(
+                "INSERT INTO usuarios (whatsapp_id, nome, nome_confirmado, criado_em) VALUES (?, ?, 0, ?)"
+            );
+            $stmt->execute([$whatsapp_id, $nome, $dataCriacao]); 
+            $newId = (int)$pdo->lastInsertId();
+            
+            return new Usuario(
+                $newId, $whatsapp_id, $nome, false, 
+                $dataCriacao,
+                null, null, null, true, true,
+                false, 
+                null, null, null, null // Adiciona null para mercado_favorito_id
+            );
+        }
+    }
+
+    public static function findByLoginToken(PDO $pdo, string $token): ?Usuario 
+    {
+        $stmt = $pdo->prepare(
+            "SELECT * FROM usuarios WHERE login_token = ? AND login_token_expira_em > NOW()"
+        );
+        $stmt->execute([$token]);
+        $userData = $stmt->fetch();
+        
+        if ($userData) {
+            $pdo->prepare("UPDATE usuarios SET login_token = NULL WHERE id = ?")
+                ->execute([$userData['id']]);
+                
+            return self::fromData($userData);
+        }
+        
+        return null;
+    }
+
     public function updateLoginToken(PDO $pdo): string
     {
         $token = bin2hex(random_bytes(32)); 
@@ -225,29 +257,6 @@ class Usuario {
         $this->login_token_expira_em = $expiraEm;
         
         return $token;
-    }
-
-    /**
-     * Encontra um usuário pelo seu token de login,
-     * garantindo que não tenha expirado.
-     */
-    public static function findByLoginToken(PDO $pdo, string $token): ?Usuario 
-    {
-        $stmt = $pdo->prepare(
-            "SELECT * FROM usuarios WHERE login_token = ? AND login_token_expira_em > NOW()"
-        );
-        $stmt->execute([$token]);
-        $userData = $stmt->fetch();
-        
-        if ($userData) {
-            // Limpa o token para que não possa ser usado novamente
-            $pdo->prepare("UPDATE usuarios SET login_token = NULL WHERE id = ?")
-                ->execute([$userData['id']]);
-                
-            return self::fromData($userData);
-        }
-        
-        return null; // Token inválido ou expirado
     }
 }
 ?>

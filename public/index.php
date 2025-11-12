@@ -1,11 +1,11 @@
 <?php
 // ---
 // /public/index.php
-// Landing Page do WalletlyBot (Dark Theme & Responsivo)
+// Landing Page do WalletlyBot (v9 Aurora Glass & Responsivo)
 // ---
 
 // Variáveis de Configuração (Aqui, em um ambiente real, você leria do .env)
-$whatsapp_number = "55XX9XXXXXXXX"; // Substitua pelo seu número do WhatsApp!
+$whatsapp_number = "5517991365558"; // Substitua pelo seu número do WhatsApp!
 $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quero%20come%C3%A7ar%20a%20economizar!";
 ?>
 <!DOCTYPE html>
@@ -15,21 +15,26 @@ $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quer
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WalletlyBot | Seu Assistente de Compras no WhatsApp</title>
     <style>
-        /* Paleta de Cores Dark Theme */
+        /* === v9 Aurora Glass & Responsivo === */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
         :root {
-            --cor-fundo: #121212;
-            --cor-fundo-secundario: #1f1f1f;
-            --cor-texto-principal: #f0f0f0;
-            --cor-texto-secundaria: #a0a0a0;
-            --cor-principal: #0a9396; /* Azul Água (Accent) */
-            --cor-principal-hover: #077e81;
-            --cor-sucesso: #90ee90; 
-            --cor-borda: #444444;
+            --cor-fundo: #1a1b26; /* Azul-ardósia escuro */
+            --cor-fundo-secundario: #2a2d3e;
+            --cor-fundo-card: rgba(42, 45, 62, 0.7); /* Azul-ardósia 70% (p/ glassmorphism) */
+            --cor-texto-principal: #e0e0e0;
+            --cor-texto-secundaria: #9a9bb5; /* Roxo-pálido/cinza */
+            --cor-principal: #7a5cff; /* Roxo/Violeta vibrante */
+            --cor-principal-hover: #6a4fde;
+            --cor-sucesso: #00f0b5; /* Verde Menta */
+            --cor-borda: #3b3e55;
         }
 
         body { 
             font-family: 'Inter', system-ui, sans-serif; 
-            background: var(--cor-fundo); 
+            background: radial-gradient(circle at 10% 20%, rgba(122, 92, 255, 0.1), transparent 30%),
+                        radial-gradient(circle at 90% 80%, rgba(0, 240, 181, 0.08), transparent 30%),
+                        var(--cor-fundo);
             color: var(--cor-texto-principal); 
             margin: 0; 
             line-height: 1.6;
@@ -45,8 +50,12 @@ $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quer
         header {
             padding: 20px 0;
             border-bottom: 1px solid var(--cor-borda);
-            background: var(--cor-fundo-secundario);
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            background: rgba(30, 31, 48, 0.7); /* Glassmorphism */
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            position: sticky;
+            top: 0;
+            z-index: 50;
         }
         header .container {
             display: flex;
@@ -61,28 +70,30 @@ $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quer
         }
         .cta-header {
             background: var(--cor-principal);
-            color: var(--cor-fundo);
+            color: #fff;
             padding: 8px 15px;
             border-radius: 6px;
             text-decoration: none;
             font-weight: 600;
-            transition: background 0.2s;
+            transition: all 0.2s;
         }
         .cta-header:hover {
             background: var(--cor-principal-hover);
+            box-shadow: 0 0 10px rgba(122, 92, 255, 0.5);
         }
 
         /* HERO SECTION */
         .hero {
             text-align: center;
             padding: 80px 20px;
-            background: var(--cor-fundo);
+            background: transparent; /* Fundo já está no body */
         }
         .hero h2 {
             font-size: 48px;
             margin-bottom: 20px;
             font-weight: 800;
-            color: var(--cor-sucesso);
+            color: var(--cor-sucesso); /* Mantém o destaque verde */
+            text-shadow: 0 0 15px rgba(0, 240, 181, 0.3);
         }
         .hero p {
             font-size: 20px;
@@ -93,24 +104,26 @@ $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quer
         .hero .cta-main {
             display: inline-block;
             background: var(--cor-principal);
-            color: var(--cor-fundo);
+            color: #fff;
             padding: 15px 30px;
             border-radius: 8px;
             text-decoration: none;
             font-size: 22px;
             font-weight: 700;
-            transition: background 0.2s, transform 0.2s;
+            transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
         }
         .hero .cta-main:hover {
             background: var(--cor-principal-hover);
-            transform: translateY(-2px);
+            transform: translateY(-3px);
+            box-shadow: 0 4px 20px rgba(122, 92, 255, 0.4);
         }
         
         /* FEATURES SECTION */
         .features {
             padding: 60px 0;
-            background: var(--cor-fundo-secundario);
+            background: rgba(30, 31, 48, 0.5); /* Fundo semi-transparente */
             border-top: 1px solid var(--cor-borda);
+            border-bottom: 1px solid var(--cor-borda);
         }
         .features h2 {
             text-align: center;
@@ -124,15 +137,17 @@ $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quer
             gap: 25px;
         }
         .feature-card {
-            background: #252525;
+            background: var(--cor-fundo-card);
+            backdrop-filter: blur(8px);
             padding: 25px;
             border-radius: 10px;
-            border-top: 4px solid var(--cor-principal);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            transition: transform 0.2s;
+            border: 1px solid var(--cor-borda);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: transform 0.2s, border-color 0.2s;
         }
         .feature-card:hover {
             transform: translateY(-5px);
+            border-color: var(--cor-principal);
         }
         .feature-card h3 {
             font-size: 20px;
@@ -151,8 +166,7 @@ $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quer
         footer {
             text-align: center;
             padding: 30px 0;
-            background: var(--cor-fundo);
-            border-top: 1px solid var(--cor-borda);
+            background: transparent;
             font-size: 14px;
             color: var(--cor-texto-secundaria);
         }
@@ -160,8 +174,11 @@ $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quer
             color: var(--cor-principal);
             text-decoration: none;
         }
+        footer a:hover {
+            text-decoration: underline;
+        }
 
-        /* RESPONSIVIDADE */
+        /* RESPONSIVIDADE (INTOCADA) */
         @media (max-width: 768px) {
             .hero { padding: 60px 10px; }
             .hero h2 { font-size: 36px; }
@@ -184,7 +201,7 @@ $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quer
     <main>
         <section class="hero">
             <div class="container">
-                <p style="text-transform: uppercase; font-weight: 600; letter-spacing: 2px;">Micro-SaaS para Gestão de Compras</p>
+                <p style="text-transform: uppercase; font-weight: 600; letter-spacing: 2px; color: var(--cor-principal);">Micro-SaaS para Gestão de Compras</p>
                 <h2>Nunca mais perca uma promoção no supermercado.</h2>
                 <p>O WalletlyBot é o seu assistente pessoal de compras, acessível diretamente no WhatsApp. Registe gastos, compare preços históricos e organize as suas listas em tempo real.</p>
                 
@@ -236,7 +253,7 @@ $whatsapp_link = "https://wa.me/" . $whatsapp_number . "?text=Ol%C3%A1%2C%20quer
 
     <footer>
         <div class="container">
-            &copy; <?php echo date("Y"); ?> WalletlyBot | Um Micro-SaaS by Oliveira & Giovanini Software.
+            &copy; <?php echo date("Y"); ?> WalletlyBot | Um Micro-SaaS by <a href="#">Oliveira & Giovanini Software</a>.
         </div>
     </footer>
 
