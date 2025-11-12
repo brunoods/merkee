@@ -1,7 +1,7 @@
 <?php
 // ---
 // /public/webhook.php
-// (VERSÃO FINAL COM CORREÇÃO DE LOOP/TIMEOUT DA META)
+// (VERSÃO FINAL COM LÓGICA "FREEMIUM" CORRIGIDA)
 // ---
 
 // (Debug)
@@ -31,7 +31,6 @@ function localWriteToLog($message) {
 // PASSO A: VERIFICAÇÃO DO ENDPOINT (GET REQUEST)
 // ==========================================================
 if (isset($_GET['hub_mode']) && $_GET['hub_mode'] === 'subscribe') {
-    // (A sua lógica de verificação que já funcionou)
     $verifyToken = $_ENV['WEBHOOK_VERIFY_TOKEN'] ?? getenv('WEBHOOK_VERIFY_TOKEN');
     $challenge = $_GET['hub_challenge'] ?? null;
     if ($challenge && $verifyToken && $_GET['hub_verify_token'] === $verifyToken) {
@@ -93,20 +92,11 @@ if (empty($message_body)) {
 }
 
 // --- !! INÍCIO DA CORREÇÃO DO LOOP !! ---
-
-// 1. Envia a resposta HTTP 200 OK IMEDIATAMENTE.
-// Diz à Meta: "Recebi, pode parar de reenviar."
 http_response_code(200);
 echo json_encode(['status' => 'success', 'message' => 'Payload recebido e em processamento.']);
-
-// 2. Se o PHP-FPM estiver a ser usado, esta função envia a resposta
-// mas permite que o script continue a ser executado em background.
 if (function_exists('fastcgi_finish_request')) {
     fastcgi_finish_request();
 }
-// Se não estiver a usar FPM, o script continua e envia a resposta no final,
-// mas a Meta pode reenviar se demorar muito.
-
 // --- !! FIM DA CORREÇÃO DO LOOP !! ---
 
 
@@ -117,12 +107,9 @@ try {
     $pdo = getDbConnection(); 
     $waService = new WhatsAppService(); 
 
-    // (Toda a sua lógica de "Portão de Acesso" (Onboarding/Subscrição)
-    // permanece a mesma que antes)
-    
-    // ... (Lógica do "Portão" aqui: findOrCreate, verificar nome_confirmado, verificar is_ativo)...
+    // Carrega o utilizador
     $usuario = Usuario::findOrCreate($pdo, $whatsapp_id, 'Visitante');
-    localWriteToLog("Usuário: ID #" . $usuario->id . " | Nome Confirmado: " . ($usuario->nome_confirmado ? 'SIM' : 'NÃO') . " | Ativo: " . ($usuario->is_ativo ? 'SIM' : 'NÃO'));
+    localWriteToLog("Usuário: ID #" . $usuario->id . " | Nome Confirmado: " . ($usuario->nome_confirmado ? 'SIM' : 'NÃO') . " | Ativo: " . ($usuario->is_ativo ? 'SIM' : 'NÃO') . " | Expira em: " . ($usuario->data_expiracao ?? 'N/A'));
     
     // (O "Portão" de Onboarding)
     if ($usuario->nome_confirmado == false && $usuario->conversa_estado == null) {
@@ -133,30 +120,57 @@ try {
         exit; // Termina o script de background
     }
     
-    // (O "Portão" de Subscrição)
+    // --- (INÍCIO DA CORREÇÃO DO PORTÃO "FREEMIUM") ---
+
+    // (O "Portão" de Subscrição - LÓGICA "FREEMIUM" CORRIGIDA)
     $hoje = new DateTime();
     $data_exp = $usuario->data_expiracao ? new DateTime($usuario->data_expiracao) : null;
-    $is_valido = false;
-    $motivo_bloqueio = "não está ativo";
 
-    if ($usuario->is_ativo && $data_exp && $data_exp >= $hoje) $is_valido = true;
-    elseif ($usuario->is_ativo && $data_exp && $data_exp < $hoje) $motivo_bloqueio = "expirou em " . $data_exp->format('d/m/Y');
-    elseif (!$usuario->is_ativo) $motivo_bloqueio = "está revogado ou pendente de ativação";
+    $is_valido = false;
+
+    // É um utilizador novo? (data_expiracao AINDA É NULA)
+    if ($data_exp === null) {
+        $is_valido = true; // É novo, PODE USAR O BOT
+        localWriteToLog("Usuário #{$usuario->id} é novo (sem data expiração). Acesso permitido.");
+    } else {
+        // Se a data existe, ele já teve um trial. Verificamos se está ativo.
+        $is_valido = ($usuario->is_ativo && $data_exp >= $hoje);
+        if ($is_valido) {
+            localWriteToLog("Usuário #{$usuario->id} está ativo (Assinatura/Trial válido). Acesso permitido.");
+        }
+    }
     
-    $is_valido = ($usuario->conversa_estado === 'aguardando_nome_para_onboarding' || $usuario->conversa_estado === 'aguardando_decisao_onboarding') ? true : $is_valido;
+    // Se ele está no meio do onboarding, ele é sempre válido
+    if ($usuario->conversa_estado === 'aguardando_nome_para_onboarding' || $usuario->conversa_estado === 'aguardando_decisao_onboarding') {
+        $is_valido = true;
+        localWriteToLog("Usuário #{$usuario->id} está em onboarding. Acesso permitido.");
+    }
 
     if ($is_valido == false) {
+        // Se chegou aqui, significa que $data_exp NÃO É NULA, e (is_ativo=false OU data_exp < hoje)
+        // Ou seja, o trial/assinatura EXPIROU.
+        
         // (Lógica de enviar mensagem de bloqueio, se não enviado hoje)
         $checkLogStmt = $pdo->prepare("SELECT COUNT(*) FROM logs_bloqueio WHERE usuario_id = ? AND data_log = CURDATE()");
         $checkLogStmt->execute([$usuario->id]);
+        
         if ($checkLogStmt->fetchColumn() == 0) {
-             $respostaDoBot = "Olá, {$usuario->nome}! 🔒\n\nA tua subscrição do Merkee {$motivo_bloqueio}.\n\nContacta o administrador.";
+             // Esta é a mensagem de bloqueio correta
+             $respostaDoBot = "O seu período de teste de 24 horas terminou. ⏳\n\nPara continuar a usar o bot, precisas de ativar a tua assinatura.\n\nEnvia *login* para acederes ao teu painel e subscreveres.";
+             
+             $motivo_bloqueio = "expirou em " . $data_exp->format('d/m/Y H:i');
              localWriteToLog("Usuário #{$usuario->id} INATIVO/EXPIRADO ({$motivo_bloqueio}). A enviar mensagem de bloqueio.");
+             
              $waService->sendMessage($whatsapp_id, $respostaDoBot); 
+             // Regista que já enviámos a mensagem hoje
              $pdo->prepare("INSERT INTO logs_bloqueio (usuario_id, data_log) VALUES (?, CURDATE())")->execute([$usuario->id]);
+        } else {
+            localWriteToLog("Usuário #{$usuario->id} INATIVO/EXPIRADO. Mensagem de bloqueio já enviada hoje. Ignorando.");
         }
         exit; // Termina o script de background
     }
+
+    // --- (FIM DA CORREÇÃO DO PORTÃO "FREEMIUM") ---
 
     // Se passou do "portão":
     $compraAtiva = Compra::findActiveByUser($pdo, $usuario->id);

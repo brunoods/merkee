@@ -1,7 +1,7 @@
 <?php
 // ---
 // /app/Controllers/BotController.php
-// (VERSÃO ATUALIZADA - ADICIONA 'ver itens' e 'desfazer')
+// (VERSÃO ATUALIZADA - Sem bloqueio de trial, pois o webhook.php trata disso)
 // ---
 
 namespace App\Controllers;
@@ -94,38 +94,14 @@ class BotController {
     {
         $comandoLimpo = strtolower(trim($messageText));
         
-        // --- (INÍCIO DA NOVA CORREÇÃO - BLOQUEIO DE TRIAL EXPIRADO) ---
-        
-        $expiraEm = $this->usuario->data_expiracao ? new \DateTime($this->usuario->data_expiracao) : null;
-        $agora = new \DateTime();
-        
-        // A data de expiração existe E está no passado?
-        $trialExpirado = ($expiraEm !== null && $expiraEm < $agora);
-        
-        // Se o trial expirou...
-        if ($trialExpirado) {
-            
-            $comandosPermitidos = ['login', 'painel', 'dashboard', 'acesso', 'assinar'];
-            
-            if (in_array($comandoLimpo, $comandosPermitidos)) {
-                
-                if ($comandoLimpo === 'assinar') {
-                     return "O teu período de teste terminou. Para assinar, envia *login* para acederes ao teu painel e clicares em 'Ativar Assinatura'.";
-                }
-                // Envia o link mágico (que o auth.php vai redirecionar para assinar.php)
-                return $this->handleMagicLinkRequest();
-            }
-            
-            // Bloqueia TODOS os outros comandos
-            return "O seu período de teste de 24 horas terminou. ⏳\n\nPara continuar a usar o bot, precisas de ativar a tua assinatura.\n\nEnvia *login* para acederes ao teu painel e subscreveres.";
-        }
+        // (O "Portão de Bloqueio" foi movido para o webhook.php,
+        // por isso esta função agora começa diretamente no timeout)
         
         // 1. Verifica se o estado da conversa expirou (timeout)
-        // (Esta é a lógica original do teu ficheiro)
         if ($this->usuario->conversa_estado && $this->usuario->conversa_estado_iniciado_em) {
             try {
                 $inicioEstado = new \DateTime($this->usuario->conversa_estado_iniciado_em);
-                // (Usamos o $agora que definimos ali em cima)
+                $agora = new \DateTime();
                 $intervalo = $agora->getTimestamp() - $inicioEstado->getTimestamp();
                 
                 if ($intervalo > (self::TIMEOUT_MINUTOS * 60)) {
@@ -187,9 +163,6 @@ class BotController {
         $this->usuario->clearState($this->pdo);
         return "Opa! 🤔 Parece que me perdi na nossa conversa. Vamos recomeçar. O que gostarias de fazer?";
     }
-
-
-    // --- (processStateWithoutPurchase e finalizarCompra - Sem alterações) ---
 
     /**
      * Lógica principal quando o usuário NÃO TEM compra ativa
@@ -281,7 +254,8 @@ class BotController {
         $comprasAnteriores = Compra::findAllCompletedByUser($this->pdo, $this->usuario->id);
         
         // 2. Se o utilizador NÃO está ativo E não tem NENHUMA compra anterior...
-        if (!$this->usuario->is_ativo && count($comprasAnteriores) === 0) {
+        //    (Significa que é a sua primeira compra E o trial ainda não foi ativado)
+        if (!$this->usuario->is_ativo && $this->usuario->data_expiracao === null && count($comprasAnteriores) === 0) {
             // ...Ativa o trial de 24 horas!
             $this->usuario->ativarTrial24h($this->pdo); 
         }
@@ -292,7 +266,7 @@ class BotController {
         // (Esta linha continua igual)
         return CompraReportService::gerarResumoFinalizacao($this->pdo, $compra);
     }
-
+    
     /**
      * Lógica de registar um item (enquanto a compra está ativa)
      * (*** MÉTODO ATUALIZADO COM AS NOVAS FUNCIONALIDADES ***)
@@ -422,9 +396,6 @@ class BotController {
         return $resposta . "\n\nPróximo item?";
     }
 
-
-    // --- (handleMagicLinkRequest - Sem alterações) ---
-
     /**
      * Lida com o pedido de 'login' ou 'painel'.
      */
@@ -437,7 +408,7 @@ class BotController {
                 throw new Exception("APP_URL não está definido no ficheiro .env");
             }
 
-            $magicLink = $appUrl . "/aplicativo/public/auth.php?token=" . $token;
+            $magicLink = $appUrl . "/auth.php?token=" . $token; // Corrigido para apontar para a raiz do .env
             
             $nomeCurto = explode(' ', $this->usuario->nome)[0];
             $resposta = "Olá, {$nomeCurto}! 👋\n\n";
