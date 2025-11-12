@@ -1,7 +1,7 @@
 <?php
 // ---
 // /app/Controllers/BotController.php
-// (VERSÃO ATUALIZADA - Sem bloqueio de trial, pois o webhook.php trata disso)
+// (VERSÃO ATUALIZADA - Com o novo comando 'assinatura')
 // ---
 
 namespace App\Controllers;
@@ -223,6 +223,15 @@ class BotController {
             case 'acesso':
                 return $this->handleMagicLinkRequest();
 
+            // --- (INÍCIO NOVO) ---
+            // Adiciona o novo comando 'assinatura' e os seus aliases
+            case 'assinatura':
+            case 'minha assinatura':
+            case 'subscrever':
+            case 'status':
+                return $this->handleAssinaturaRequest();
+            // --- (FIM NOVO) ---
+            
             case 'ajuda':
             case 'comandos':
             case 'tutorial':
@@ -240,31 +249,55 @@ class BotController {
                 return "Desculpa, não entendi. 😕\nEnvia *comandos* para ver tudo o que posso fazer.";
         }
     }
-
-   /**
+    
+    /**
      * Lógica de finalizar compra (chamada internamente)
-     * (VERSÃO ATUALIZADA COM LÓGICA DE TRIAL DE 24H)
+     * (VERSÃO ATUALIZADA COM MENSAGEM DE ATIVAÇÃO DO TRIAL)
      */
     private function finalizarCompra(Compra $compra): string
     {
+        $mensagemBonusTrial = ""; // 1. Prepara a variável da mensagem bónus
+
         // --- (INÍCIO DA LÓGICA DE TRIAL) ---
         
-        // 1. Verifica se o utilizador já tem compras ANTES desta.
-        // (Usamos a mesma função que o dashboard usa)
         $comprasAnteriores = Compra::findAllCompletedByUser($this->pdo, $this->usuario->id);
         
-        // 2. Se o utilizador NÃO está ativo E não tem NENHUMA compra anterior...
-        //    (Significa que é a sua primeira compra E o trial ainda não foi ativado)
+        // 2. Se for a PRIMEIRA compra do utilizador...
         if (!$this->usuario->is_ativo && $this->usuario->data_expiracao === null && count($comprasAnteriores) === 0) {
-            // ...Ativa o trial de 24 horas!
+            
             $this->usuario->ativarTrial24h($this->pdo); 
+            
+            // 3. Prepara a mensagem de marketing e o link de acesso imediato
+            try {
+                $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL');
+                if (empty($appUrl)) {
+                    throw new Exception("APP_URL não definido para o link bónus.");
+                }
+
+                // Gera um novo token de login (como a função handleMagicLinkRequest faz)
+                // Usamos o link corrigido (sem /public/) que definimos antes.
+                $token = $this->usuario->updateLoginToken($this->pdo);
+                $linkPainel = $appUrl . "/auth.php?token=" . $token;
+
+                $mensagemBonusTrial = "\n\n" .
+                    "🎁 *Presente!* Por ser a tua primeira compra, acabas de ativar o teu **Acesso Premium de 24 horas**!\n\n" .
+                    "Durante as próximas 24h, terás acesso total ao teu painel de estatísticas, histórico de preços e sugestões de poupança.\n\n" .
+                    "✨ *Clica agora para veres o teu painel completo:*\n" .
+                    $linkPainel . "\n\n" .
+                    "_(O link expira em 10 minutos)_";
+
+            } catch (Exception $e) {
+                // Se falhar a geração do link, não estraga a finalização da compra
+                localWriteToLog("Falha ao gerar link bónus no trial: " . $e->getMessage());
+                // (A variável $mensagemBonusTrial continuará vazia)
+            }
         }
         
-        // --- (FIM DA LÓGICA DE TRIAL) ---
-
-        // 3. Delega 100% da lógica de geração de relatório para o Serviço
-        // (Esta linha continua igual)
-        return CompraReportService::gerarResumoFinalizacao($this->pdo, $compra);
+        // 4. Gera o resumo normal da compra
+        $resumoCompra = CompraReportService::gerarResumoFinalizacao($this->pdo, $compra);
+        
+        // 5. Envia o resumo + a mensagem bónus (se ela existir)
+        return $resumoCompra . $mensagemBonusTrial;
     }
     
     /**
@@ -396,7 +429,7 @@ class BotController {
         return $resposta . "\n\nPróximo item?";
     }
 
-    /**
+  /**
      * Lida com o pedido de 'login' ou 'painel'.
      */
     private function handleMagicLinkRequest(): string
@@ -422,5 +455,45 @@ class BotController {
             throw new Exception("Erro ao gerar o link mágico: " . $e->getMessage());
         }
     }
+
+    // --- (INÍCIO DA CORREÇÃO) ---
+    /**
+     * Lida com o pedido de 'assinatura'.
+     * Envia um link MÁGICO para o painel, onde o utilizador pode assinar.
+     */
+    private function handleAssinaturaRequest(): string
+    {
+        try {
+            // 1. Verifica se o utilizador já é Premium (Trial ou Pago)
+            if ($this->usuario->is_ativo && $this->usuario->data_expiracao !== null) {
+                
+                $dataExp = new \DateTime($this->usuario->data_expiracao);
+                $dataExpFmt = $dataExp->format('d/m/Y \à\s H:i');
+                
+                return "Tu já tens uma assinatura Premium! 🚀\n\n" .
+                       "O teu acesso está ativo até: *" . $dataExpFmt . "*.\n\n" .
+                       "Obrigado por apoiares o projeto! 👍";
+            }
+
+            // 2. Se for Freemium, envia um link de LOGIN para o painel.
+            // (Não podemos linkar 'assinar.php' diretamente por causa da sessão).
+            $token = $this->usuario->updateLoginToken($this->pdo);
+            $appUrl = $_ENV['APP_URL'] ?? getenv('APP_URL');
+            if (empty($appUrl)) {
+                throw new Exception("APP_URL não está definido no ficheiro .env");
+            }
+
+            $magicLink = $appUrl . "/auth.php?token=" . $token;
+
+            return "Para veres os planos de assinatura, precisas de aceder ao teu painel de controlo.\n\n" .
+                   "✨ *Clica no link seguro abaixo para fazeres o login:*\n" .
+                   $magicLink . "\n\n" .
+                   "_(Este link expira em 10 minutos)_.";
+
+        } catch (Exception $e) {
+            // Se falhar (ex: .env em falta), lança a exceção para ser logada
+            throw new Exception("Erro ao gerar a resposta de assinatura: " . $e->getMessage());
+        }
+    }
+    // --- (FIM NOVO) ---
 }
-?>
