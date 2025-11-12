@@ -78,8 +78,6 @@ class Usuario {
             (int)$userData['mercado_favorito_id'] ?? null // (Adicionado)
         );
     }
-    
-    // ... (findAll, findById, findOrCreate, updateNameAndConfirm, updateState, clearState, updateConfig, updateLoginToken, findByLoginToken continuam iguais) ...
 
     /**
      * Atualiza o nome e marca como confirmado.
@@ -257,6 +255,27 @@ class Usuario {
         $this->login_token_expira_em = $expiraEm;
         
         return $token;
+    }
+
+    /**
+     * NOVO MÉTODO: Ativa um trial de 24h para o utilizador.
+     * Usado após a primeira compra ser finalizada.
+     */
+    public function ativarTrial24h(PDO $pdo): void
+    {
+        // Define a data de expiração para daqui a 24 horas
+        $novaDataExpiracao = (new \DateTime('+24 hours'))->format('Y-m-d H:i:s');
+        
+        $stmt = $pdo->prepare(
+            "UPDATE usuarios 
+             SET is_ativo = 1, data_expiracao = ? 
+             WHERE id = ?"
+        );
+        $stmt->execute([$novaDataExpiracao, $this->id]);
+        
+        // Atualiza o objeto local para que o resto do script saiba
+        $this->is_ativo = true;
+        $this->data_expiracao = $novaDataExpiracao;
     }
 }
 ?>

@@ -1,7 +1,7 @@
 <?php
 // ---
 // /public/auth.php
-// O "Porteiro" do Link Mágico (v9 Aurora Glass)
+// O "Porteiro" do Link Mágico (v10 - COM LÓGICA DE REDIRECIONAMENTO)
 // ---
 
 // 1. Incluir o Bootstrap (para acesso ao DB e Models)
@@ -15,6 +15,7 @@ session_start();
 $token = $_GET['token'] ?? null;
 
 // --- Função de Saída de Erro UX (v9 Aurora Glass) ---
+// (Esta função continua 100% igual)
 function displayError(string $message) {
     // Paleta de cores v9 Aurora Glass
     $corFundo = '#1a1b26';
@@ -93,18 +94,37 @@ try {
     $pdo = getDbConnection();
     
     // 3. Tenta encontrar o usuário com este token
+    // (O findByLoginToken já apaga o token, o que é ótimo para segurança)
     $usuario = Usuario::findByLoginToken($pdo, $token);
     
     if ($usuario) {
         // --- SUCESSO! ---
         
-        // 4. Regista o utilizador na sessão
+        // 4. Regista o utilizador na sessão (SEMPRE)
         $_SESSION['user_id'] = $usuario->id;
         $_SESSION['user_nome'] = $usuario->nome;
         
-        // 5. Redireciona para o painel principal
+        // --- (INÍCIO DA CORREÇÃO - LÓGICA DE REDIRECIONAMENTO) ---
+
+        // 5. Verifica o estado do trial/assinatura
+        $expiraEm = $usuario->data_expiracao ? new \DateTime($usuario->data_expiracao) : null;
+        $agora = new \DateTime();
+        
+        $teveTrial = ($expiraEm !== null);
+        $trialExpirado = ($teveTrial && $expiraEm < $agora);
+
+        // Se o trial expirou (e não está ativo), envia para a página de assinar.
+        if ($trialExpirado) {
+            header("Location: assinar.php");
+            exit;
+        }
+        
+        // Em TODOS os outros casos (utilizador novo ou utilizador ativo),
+        // envia para o painel principal (dashboard).
         header("Location: dashboard.php");
         exit;
+        
+        // --- (FIM DA CORREÇÃO) ---
         
     } else {
         // --- FALHA ---
@@ -112,6 +132,7 @@ try {
     }
     
 } catch (Exception $e) {
+    // (Opcional: podemos logar $e->getMessage() aqui se quisermos)
     displayError("Erro crítico no servidor. Por favor, tente mais tarde.");
 }
 ?>

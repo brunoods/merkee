@@ -87,8 +87,6 @@ class BotController {
         return $this->onboardingHandler;
     }
 
-    // --- (processMessage e handleStatefulConversation - Sem alterações) ---
-
     /**
      * Ponto de entrada principal do Controller.
      */
@@ -96,11 +94,38 @@ class BotController {
     {
         $comandoLimpo = strtolower(trim($messageText));
         
+        // --- (INÍCIO DA NOVA CORREÇÃO - BLOQUEIO DE TRIAL EXPIRADO) ---
+        
+        $expiraEm = $this->usuario->data_expiracao ? new \DateTime($this->usuario->data_expiracao) : null;
+        $agora = new \DateTime();
+        
+        // A data de expiração existe E está no passado?
+        $trialExpirado = ($expiraEm !== null && $expiraEm < $agora);
+        
+        // Se o trial expirou...
+        if ($trialExpirado) {
+            
+            $comandosPermitidos = ['login', 'painel', 'dashboard', 'acesso', 'assinar'];
+            
+            if (in_array($comandoLimpo, $comandosPermitidos)) {
+                
+                if ($comandoLimpo === 'assinar') {
+                     return "O teu período de teste terminou. Para assinar, envia *login* para acederes ao teu painel e clicares em 'Ativar Assinatura'.";
+                }
+                // Envia o link mágico (que o auth.php vai redirecionar para assinar.php)
+                return $this->handleMagicLinkRequest();
+            }
+            
+            // Bloqueia TODOS os outros comandos
+            return "O seu período de teste de 24 horas terminou. ⏳\n\nPara continuar a usar o bot, precisas de ativar a tua assinatura.\n\nEnvia *login* para acederes ao teu painel e subscreveres.";
+        }
+        
         // 1. Verifica se o estado da conversa expirou (timeout)
+        // (Esta é a lógica original do teu ficheiro)
         if ($this->usuario->conversa_estado && $this->usuario->conversa_estado_iniciado_em) {
             try {
                 $inicioEstado = new \DateTime($this->usuario->conversa_estado_iniciado_em);
-                $agora = new \DateTime();
+                // (Usamos o $agora que definimos ali em cima)
                 $intervalo = $agora->getTimestamp() - $inicioEstado->getTimestamp();
                 
                 if ($intervalo > (self::TIMEOUT_MINUTOS * 60)) {
@@ -130,7 +155,6 @@ class BotController {
             return $this->processStateWithoutPurchase($comandoLimpo);
         }
     }
-
 
     /**
      * Lida com todas as conversas que dependem de um estado (multi-passos)
@@ -244,15 +268,30 @@ class BotController {
         }
     }
 
-    /**
+   /**
      * Lógica de finalizar compra (chamada internamente)
+     * (VERSÃO ATUALIZADA COM LÓGICA DE TRIAL DE 24H)
      */
     private function finalizarCompra(Compra $compra): string
     {
-        // Delega 100% da lógica de geração de relatório para o Serviço
+        // --- (INÍCIO DA LÓGICA DE TRIAL) ---
+        
+        // 1. Verifica se o utilizador já tem compras ANTES desta.
+        // (Usamos a mesma função que o dashboard usa)
+        $comprasAnteriores = Compra::findAllCompletedByUser($this->pdo, $this->usuario->id);
+        
+        // 2. Se o utilizador NÃO está ativo E não tem NENHUMA compra anterior...
+        if (!$this->usuario->is_ativo && count($comprasAnteriores) === 0) {
+            // ...Ativa o trial de 24 horas!
+            $this->usuario->ativarTrial24h($this->pdo); 
+        }
+        
+        // --- (FIM DA LÓGICA DE TRIAL) ---
+
+        // 3. Delega 100% da lógica de geração de relatório para o Serviço
+        // (Esta linha continua igual)
         return CompraReportService::gerarResumoFinalizacao($this->pdo, $compra);
     }
-
 
     /**
      * Lógica de registar um item (enquanto a compra está ativa)
